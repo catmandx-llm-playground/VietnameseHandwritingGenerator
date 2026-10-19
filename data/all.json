@@ -1,4 +1,214 @@
 {
+  "0": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2,
+            "y": 3.75,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2,
+      "y": 3.75
+    }
+  },
+  "1": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0.25,
+            "y": 3,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 0.25,
+      "y": 3
+    }
+  },
+  "2": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0.5,
+            "y": 3,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 0.5,
+      "y": 3
+    }
+  },
+  "3": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0.5,
+            "y": 4,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 0.5,
+      "y": 4
+    }
+  },
+  "4": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.25,
+            "y": 4,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.25,
+      "y": 4
+    }
+  },
+  "5": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.5,
+            "y": 4,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.5,
+      "y": 4
+    }
+  },
+  "6": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.5,
+            "y": 3,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.5,
+      "y": 3
+    }
+  },
+  "7": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0.5,
+            "y": 4,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 0.5,
+      "y": 4
+    }
+  },
+  "8": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.25,
+            "y": 3.25,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.25,
+      "y": 3.25
+    }
+  },
+  "9": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.5,
+            "y": 2.5,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.5,
+      "y": 2.5
+    }
+  },
   "a": {
     "baseGlyph": 97,
     "types": [
@@ -128,7 +338,33 @@
     "startPoint": {
       "x": 0,
       "y": 1
-    }
+    },
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0,
+            "y": 1,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792396384413",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 0.03,
+            "y": 1.05,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ]
   },
   "c": {
     "types": [
@@ -380,7 +616,25 @@
           "level": "913"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.52,
+            "y": 1.42,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.52,
+      "y": 1.42
+    }
   },
   "g": {
     "types": [
@@ -3353,7 +3607,42 @@
           "heavy": "7840"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1,
+            "y": 2,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792337647829",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1,
+            "y": 2,
+            "label": "Nét 1"
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1,
+      "y": 2
+    }
   },
   "B": {
     "types": [
@@ -3392,7 +3681,42 @@
           "level": "563"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2,
+            "y": 4,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792337707190",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2,
+            "y": 4,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.5,
+            "y": 5,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2,
+      "y": 4
+    }
   },
   "Ă": {
     "types": [
@@ -3418,7 +3742,25 @@
           "heavy": "7862"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1,
+            "y": 2,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1,
+      "y": 2
+    }
   },
   "Â": {
     "types": [
@@ -3445,7 +3787,25 @@
           "heavy": "7852"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1,
+            "y": 2,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1,
+      "y": 2
+    }
   },
   "C": {
     "types": [
@@ -3483,7 +3843,64 @@
           "level": "482"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.08,
+            "y": 4.94,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792337887216",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.11,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792337905843",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.05,
+            "y": 4.95,
+            "label": "Nét 1"
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.65,
+            "y": 4.94,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.08,
+      "y": 4.94
+    }
   },
   "D": {
     "types": [
@@ -3521,7 +3938,42 @@
           "level": "483"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 3,
+            "y": 5,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792338599590",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 3,
+            "y": 5,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.5,
+            "y": 4,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 3,
+      "y": 5
+    }
   },
   "Đ": {
     "types": [
@@ -3559,7 +4011,25 @@
           "level": "484"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.94,
+            "y": 4.87,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.94,
+      "y": 4.87
+    }
   },
   "E": {
     "types": [
@@ -3602,7 +4072,96 @@
           "heavy": "7864,454"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.82,
+            "y": 4.93,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792338703084",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.82,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792338727688",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.84,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.75,
+            "y": 4.91,
+            "label": "Nét 3"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792338910983",
+        "name": "4. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.84,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1,
+            "y": 3,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.8,
+            "y": 4.93,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.26,
+            "y": 2.56,
+            "label": "Nét 4"
+          },
+          {
+            "x": 1.88,
+            "y": 1.11,
+            "label": "Nét 5"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.82,
+      "y": 4.93
+    }
   },
   "Ê": {
     "types": [
@@ -3646,7 +4205,91 @@
           "heavy": "7878,454"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.84,
+            "y": 4.94,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379550433",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.84,
+            "y": 4.94,
+            "label": "Nét 1"
+          },
+          {
+            "x": 0.99,
+            "y": 2.98,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379580073",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.87,
+            "y": 4.96,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.02,
+            "y": 3.02,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.76,
+            "y": 4.93,
+            "label": "Nét 3"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379672469",
+        "name": "4. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.81,
+            "y": 4.94,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.02,
+            "y": 3.03,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.75,
+            "y": 4.94,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.26,
+            "y": 2.55,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.84,
+      "y": 4.94
+    }
   },
   "G": {
     "types": [
@@ -3681,7 +4324,69 @@
           "level": "976"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.06,
+            "y": 4.94,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379779766",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.13,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.43,
+            "y": 2.55,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379812636",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.11,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.58,
+            "y": 2.55,
+            "label": "Nét 2"
+          },
+          {
+            "x": 4.03,
+            "y": 4.07,
+            "label": "Nét 3"
+          },
+          {
+            "x": 3.81,
+            "y": 4.93,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.06,
+      "y": 4.94
+    }
   },
   "Gh": {
     "types": [
@@ -3711,7 +4416,64 @@
           "level": "374"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.14,
+            "y": 4.96,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379951556",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.14,
+            "y": 4.96,
+            "label": "Nét 1"
+          },
+          {
+            "x": 4.08,
+            "y": 1.94,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792379977488",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.2,
+            "y": 4.95,
+            "label": "Nét 1"
+          },
+          {
+            "x": 4.07,
+            "y": 1.95,
+            "label": "Nét 2"
+          },
+          {
+            "x": 5.06,
+            "y": 2.04,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.14,
+      "y": 4.96
+    }
   },
   "H": {
     "types": [
@@ -3750,7 +4512,94 @@
           "level": "965"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.53,
+            "y": 4.02,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.31,
+            "y": 4.95,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380061467",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.58,
+            "y": 4.02,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.19,
+            "y": 4.91,
+            "label": "Nét 2"
+          },
+          {
+            "x": 0.99,
+            "y": 0.1,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.07,
+            "y": 2.17,
+            "label": "Nét 4"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380150721",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.56,
+            "y": 3.97,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.23,
+            "y": 4.89,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.08,
+            "y": 0.09,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.04,
+            "y": 2.17,
+            "label": "Nét 4"
+          },
+          {
+            "x": 3.1,
+            "y": 3.08,
+            "label": "Nét 5"
+          },
+          {
+            "x": 4.1,
+            "y": 4.87,
+            "label": "Nét 6"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.53,
+      "y": 4.02
+    }
   },
   "I": {
     "types": [
@@ -3796,7 +4645,42 @@
           "heavy": "7882,454"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.81,
+            "y": 3.98,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380278297",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.81,
+            "y": 3.98,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.51,
+            "y": 4.89,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.81,
+      "y": 3.98
+    }
   },
   "K": {
     "types": [
@@ -3839,7 +4723,52 @@
           "level": "533"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.53,
+            "y": 3.96,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380309862",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.53,
+            "y": 3.96,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.26,
+            "y": 4.96,
+            "label": "Nét 2"
+          },
+          {
+            "x": 4.05,
+            "y": 4.1,
+            "label": "Nét 3"
+          },
+          {
+            "x": 1.67,
+            "y": 2.5,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.53,
+      "y": 3.96
+    }
   },
   "L": {
     "types": [
@@ -3878,7 +4807,74 @@
           "level": "971"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2,
+            "y": 5,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380400316",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2,
+            "y": 5,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.08,
+            "y": 2.85,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.35,
+            "y": 4.93,
+            "label": "Nét 3"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380418579",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2,
+            "y": 5,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.02,
+            "y": 2.86,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.3,
+            "y": 4.89,
+            "label": "Nét 3"
+          },
+          {
+            "x": -0.01,
+            "y": 0.33,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2,
+      "y": 5
+    }
   },
   "M": {
     "types": [
@@ -3918,7 +4914,69 @@
           "level": "958"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.52,
+            "y": 1.07,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380514793",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.52,
+            "y": 1.07,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.16,
+            "y": 4.91,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380527759",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.56,
+            "y": 1.11,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.11,
+            "y": 5.03,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.81,
+            "y": 0.1,
+            "label": "Nét 3"
+          },
+          {
+            "x": 4.69,
+            "y": 4.95,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.52,
+      "y": 1.07
+    }
   },
   "N": {
     "types": [
@@ -3953,7 +5011,60 @@
     "startPoint": {
       "x": 1.5,
       "y": 1
-    }
+    },
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.5,
+            "y": 1,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380573079",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.5,
+            "y": 1,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.01,
+            "y": 4.96,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380581198",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.5,
+            "y": 1,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3,
+            "y": 5,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.48,
+            "y": 0.16,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ]
   },
   "O": {
     "types": [
@@ -4000,7 +5111,42 @@
           "heavy": "7884,549"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.94,
+            "y": 4.88,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380624777",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.94,
+            "y": 4.88,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.96,
+            "y": 3.56,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.94,
+      "y": 4.88
+    }
   },
   "Ô": {
     "types": [
@@ -4043,7 +5189,42 @@
           "heavy": "7896,549"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.95,
+            "y": 4.93,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380653388",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.95,
+            "y": 4.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.55,
+            "y": 5.32,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.95,
+      "y": 4.93
+    }
   },
   "Ơ": {
     "types": [
@@ -4086,7 +5267,42 @@
           "heavy": "7906,549"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2,
+            "y": 4.91,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380699968",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.02,
+            "y": 4.96,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.48,
+            "y": 5.01,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2,
+      "y": 4.91
+    }
   },
   "P": {
     "types": [
@@ -4115,7 +5331,47 @@
           "level": "80"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 3.6,
+            "y": 5,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380725222",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 3.62,
+            "y": 4.94,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.06,
+            "y": 3.91,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.13,
+            "y": 3.54,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 3.6,
+      "y": 5
+    }
   },
   "Q": {
     "types": [
@@ -4132,7 +5388,25 @@
           "level": "81"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.15,
+            "y": 5,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.15,
+      "y": 5
+    }
   },
   "R": {
     "types": [
@@ -4170,7 +5444,64 @@
           "level": "945"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 3.53,
+            "y": 5.01,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380789909",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 3.53,
+            "y": 5.01,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.14,
+            "y": 4.07,
+            "label": "Nét 2"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380797205",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 3.5,
+            "y": 5,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.05,
+            "y": 4.01,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.06,
+            "y": 2.6,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 3.53,
+      "y": 5.01
+    }
   },
   "S": {
     "types": [
@@ -4209,7 +5540,42 @@
           "level": "550"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.99,
+            "y": 4.95,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380873471",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.99,
+            "y": 4.95,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.25,
+            "y": 4.96,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.99,
+      "y": 4.95
+    }
   },
   "T": {
     "types": [
@@ -4250,7 +5616,47 @@
           "level": "481"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.93,
+            "y": 3.62,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380908958",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.93,
+            "y": 3.62,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.98,
+            "y": 4.84,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.31,
+            "y": 4.96,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.93,
+      "y": 3.62
+    }
   },
   "U": {
     "types": [
@@ -4283,7 +5689,25 @@
           "heavy": "7908"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.57,
+            "y": 3.95,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.57,
+      "y": 3.95
+    }
   },
   "Ư": {
     "types": [
@@ -4352,7 +5776,42 @@
           "level": "7710"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.61,
+            "y": 3.91,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792380981448",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.49,
+            "y": 3.95,
+            "label": "Nét 1"
+          },
+          {
+            "x": 3.24,
+            "y": 1.99,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.61,
+      "y": 3.91
+    }
   },
   "X": {
     "types": [
@@ -4391,7 +5850,47 @@
           "level": "485"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.34,
+            "y": 3.94,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792381061489",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.38,
+            "y": 3.89,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.9,
+            "y": 2.6,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.5,
+            "y": 4.95,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.34,
+      "y": 3.94
+    }
   },
   "Y": {
     "types": [
@@ -4431,6 +5930,645 @@
           "level": "972"
         }
       }
-    ]
+    ],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.58,
+            "y": 3.91,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.58,
+      "y": 3.91
+    }
+  },
+  "Ḁ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.08,
+            "y": 1,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.08,
+      "y": 1
+    }
+  },
+  "ḁ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.01,
+            "y": 2.01,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.01,
+      "y": 2.01
+    }
+  },
+  "ḃ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.5,
+            "y": 2,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.5,
+      "y": 2
+    }
+  },
+  "Ḅ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2,
+            "y": 2,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401188400",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.98,
+            "y": 1.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.95,
+            "y": 0.91,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2,
+      "y": 2
+    }
+  },
+  "ḅ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1,
+            "y": 1,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401217532",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1,
+            "y": 1,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.98,
+            "y": 0.02,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1,
+      "y": 1
+    }
+  },
+  "Ḇ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1,
+            "y": 1,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401282522",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1,
+            "y": 1,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.01,
+            "y": 1.96,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3.5,
+            "y": 1,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1,
+      "y": 1
+    }
+  },
+  "ḇ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.64,
+            "y": 1.68,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401432228",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.64,
+            "y": 1.68,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.12,
+            "y": 1.96,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.48,
+            "y": 0.98,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.95,
+            "y": 0.58,
+            "label": "Nét 4"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.64,
+      "y": 1.68
+    }
+  },
+  "Ḉ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.86,
+            "y": 1.71,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401679338",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.86,
+            "y": 1.71,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.34,
+            "y": 1.91,
+            "label": "Nét 2"
+          },
+          {
+            "x": 3,
+            "y": 1.01,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.86,
+      "y": 1.71
+    }
+  },
+  "ḉ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.45,
+            "y": 1.04,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401713307",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.45,
+            "y": 1.04,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.96,
+            "y": 1.98,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.87,
+            "y": 4,
+            "label": "Nét 3"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401737551",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.43,
+            "y": 0.99,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "label": "Nét 2"
+          },
+          {
+            "x": 2.9,
+            "y": 3.95,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.64,
+            "y": 4.92,
+            "label": "Nét 4"
+          },
+          {
+            "x": 1.98,
+            "y": 4.02,
+            "label": "Nét 5"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401767174",
+        "name": "4. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.9,
+            "y": 3.95,
+            "label": "Nét 1"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.45,
+      "y": 1.04
+    }
+  },
+  "Ḋ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 2.02,
+            "y": 1.93,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401817525",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 2.02,
+            "y": 1.93,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.92,
+            "y": -2.01,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.32,
+            "y": -2.93,
+            "label": "Nét 3"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401850251",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.98,
+            "y": 1.96,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.95,
+            "y": -2.03,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.38,
+            "y": -2.95,
+            "label": "Nét 3"
+          },
+          {
+            "x": 1.05,
+            "y": -2.04,
+            "label": "Nét 4"
+          },
+          {
+            "x": 2,
+            "y": 0,
+            "label": "Nét 5"
+          },
+          {
+            "x": 2.5,
+            "y": 1,
+            "label": "Nét 6"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 2.02,
+      "y": 1.93
+    }
+  },
+  "ḋ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 0.99,
+            "y": 1.02,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401915028",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 0.99,
+            "y": 1.02,
+            "label": "Nét 1"
+          },
+          {
+            "x": 2.09,
+            "y": 1.97,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.75,
+            "y": 0.95,
+            "label": "Nét 3"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 0.99,
+      "y": 1.02
+    }
+  },
+  "Ḍ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.5,
+            "y": 0,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792401970472",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.5,
+            "y": 0,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.92,
+            "y": 1.96,
+            "label": "Nét 2"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.5,
+      "y": 0
+    }
+  },
+  "Ḑ": {
+    "types": [],
+    "dotConfigs": [
+      {
+        "id": "start",
+        "name": "1. Điểm đặt bút (Chuẩn)",
+        "desc": "1 chấm chuẩn",
+        "dots": [
+          {
+            "x": 1.48,
+            "y": 1.94,
+            "label": "Nét 1"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792402003476",
+        "name": "2. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.48,
+            "y": 1.94,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.46,
+            "y": -0.07,
+            "label": "Nét 2"
+          },
+          {
+            "x": 0.86,
+            "y": -3,
+            "label": "Nét 3"
+          },
+          {
+            "x": 2.5,
+            "y": 2,
+            "label": "Nét 4"
+          },
+          {
+            "x": 3.15,
+            "y": 4.96,
+            "label": "Nét 6"
+          }
+        ]
+      },
+      {
+        "id": "cfg_1792402109647",
+        "name": "3. Cấu hình mới",
+        "desc": "Giai đoạn tập viết",
+        "dots": [
+          {
+            "x": 1.48,
+            "y": 1.94,
+            "label": "Nét 1"
+          },
+          {
+            "x": 1.45,
+            "y": 0.02,
+            "label": "Nét 2"
+          },
+          {
+            "x": 1.43,
+            "y": -1.97,
+            "label": "Nét 3"
+          },
+          {
+            "x": 0.8,
+            "y": -2.97,
+            "label": "Nét 4"
+          },
+          {
+            "x": 2.54,
+            "y": 2,
+            "label": "Nét 5"
+          },
+          {
+            "x": 3.48,
+            "y": 4,
+            "label": "Nét 6"
+          },
+          {
+            "x": 3.2,
+            "y": 4.96,
+            "label": "Nét 7"
+          },
+          {
+            "x": 2.58,
+            "y": 4,
+            "label": "Nét 8"
+          }
+        ]
+      }
+    ],
+    "startPoint": {
+      "x": 1.48,
+      "y": 1.94
+    }
   }
 }
