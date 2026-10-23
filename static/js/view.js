@@ -3825,6 +3825,9 @@ view.exportWhite11x14ToPng = async function () {
             // 2. Draw Grid Lines (Crisp and opaque for printing)
             const majorColor = 'rgba(60, 75, 115, 0.9)';
             const minorColor = 'rgba(90, 115, 165, 0.7)';
+            // Grid line thickness settings (adjusted: 30% decrease from 2.0 / 1.0)
+            const gridLineWidthMajor = 1.4; // Major grid line thickness (was 2.0)
+            const gridLineWidthMinor = 0.7; // Minor grid line thickness (was 1.0)
 
             // Horizontal grid lines
             for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
@@ -3832,7 +3835,7 @@ view.exportWhite11x14ToPng = async function () {
                 const isMajor = (k % 4 === 0);
                 ctx.beginPath();
                 ctx.strokeStyle = isMajor ? majorColor : minorColor;
-                ctx.lineWidth = isMajor ? 2.0 : 1.0;
+                ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
                 ctx.moveTo(0, y);
                 ctx.lineTo(widthPx, y);
                 ctx.stroke();
@@ -3849,7 +3852,7 @@ view.exportWhite11x14ToPng = async function () {
                 const isMajor = (k % 4 === 0);
                 ctx.beginPath();
                 ctx.strokeStyle = isMajor ? majorColor : minorColor;
-                ctx.lineWidth = isMajor ? 2.0 : 1.0;
+                ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x - heightPx * slantOffset, heightPx);
                 ctx.stroke();
@@ -3959,7 +3962,8 @@ view.exportWhite11x14ToPng = async function () {
 
                     const olyUnitPx = isSmall ? 9.6 : 19.2;
                     const blockWidth = 76.8;
-                    const dotRadius = isSmall ? 2.5 : 3.5;
+                    // Guide dot radius in export (decreased by 50% from 2.5 / 3.5)
+                    const dotRadius = isSmall ? 1.25 : 1.75;
 
                     const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
                     const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
