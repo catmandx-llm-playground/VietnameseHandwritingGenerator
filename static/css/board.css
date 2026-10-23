@@ -378,6 +378,16 @@
     font-weight: bold;
 }
 
+.word[data-weight="bold"],
+.word[data-weight="bold"] .word-text {
+    font-weight: bold !important;
+}
+
+.word[data-weight="normal"],
+.word[data-weight="normal"] .word-text {
+    font-weight: normal !important;
+}
+
 #result.small,
 .result-text.small {
     grid-auto-rows: calc(var(--grid-unit) * 4);
@@ -501,7 +511,8 @@ p.line {
 }
 
 .btn-word-drag,
-.btn-word-reset {
+.btn-word-reset,
+.btn-word-bold {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -520,7 +531,8 @@ p.line {
 
 /* Expanded invisible touch hitboxes (increases interactive area without changing visual display size) */
 .btn-word-drag::after,
-.btn-word-reset::after {
+.btn-word-reset::after,
+.btn-word-bold::after {
     content: '';
     position: absolute;
     top: -14px;
@@ -535,17 +547,51 @@ p.line {
 
 .btn-word-reset::after {
     left: -1.5px;
+    right: -1.5px;
+}
+
+.btn-word-bold::after {
+    left: -1.5px;
     right: -2px;
 }
 
 .btn-word-drag i,
-.btn-word-reset i {
+.btn-word-reset i,
+.btn-word-bold i {
     pointer-events: none;
 }
 
 .white .btn-word-drag,
-.white .btn-word-reset {
+.white .btn-word-reset,
+.white .btn-word-bold {
     color: #334155;
+}
+
+.btn-word-bold {
+    cursor: pointer;
+    font-size: 10px;
+}
+
+.btn-word-bold:hover {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+.btn-word-bold.is-override {
+    background: rgba(14, 165, 233, 0.35);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.5);
+}
+
+.btn-word-bold.is-override:hover {
+    background: #0284c7;
+    color: #ffffff;
+}
+
+.white .btn-word-bold.is-override {
+    background: rgba(2, 132, 199, 0.15);
+    color: #0284c7;
+    border: 1px solid rgba(2, 132, 199, 0.4);
 }
 
 .btn-word-drag {

@@ -192,6 +192,12 @@ view.init = function () {
         view.triggerAutoSave(true);
     });
 
+    // Auto-stretch checkbox
+    $('#autostretch-checkbox').on('change', function () {
+        view.changeAutoStretch(this.checked);
+        view.triggerAutoSave(true);
+    });
+
     // Setup word drag interactions (drag handle at top left of word)
     view.setupDragInteractions();
 
@@ -1308,17 +1314,26 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
     $line.attr('data-source-line-idx', srcLineIdx);
     $line.attr('data-is-practice', isPractice ? 'true' : 'false');
 
-    // Collect existing word margins & stretch to preserve user adjustments across re-renders
+    // Collect existing word margins, stretch, weight, and stretch origins to preserve user adjustments across re-renders
     const existingMargins = [];
     const existingStretches = [];
     const existingNatWidths = [];
+    const existingWeights = [];
+    const existingManualStretches = [];
+    const existingAutoStretches = [];
     $line.children('.word').each(function () {
         const ml = this.style.marginLeft;
         const stretch = $(this).attr('data-stretch');
         const natW = $(this).attr('data-natural-width');
+        const weight = $(this).attr('data-weight');
+        const manual = $(this).attr('data-manual-stretch');
+        const auto = $(this).attr('data-auto-stretch');
         existingMargins.push(ml || null);
         existingStretches.push(stretch ? parseFloat(stretch) : null);
         existingNatWidths.push(natW ? parseFloat(natW) : null);
+        existingWeights.push(weight || null);
+        existingManualStretches.push(manual || null);
+        existingAutoStretches.push(auto || null);
     });
 
     const wordTokens = lineTokens.filter(t => t.type === 'word');
@@ -1340,6 +1355,10 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
     let html = '';
     let lineDotConfig = view.getDottingConfig(srcLineIdx, $line);
     const isDotActive = view.isDottingActive();
+    const isAutoStretchActive = $('#autostretch-checkbox').is(':checked');
+    const isGlobalBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const cfg = (window.APP_CONFIG && window.APP_CONFIG.wordStretch) || { stretchTargetPercent: 121.89 };
+    const optimalScale = cfg.stretchTargetPercent / 100;
 
     for (const token of lineTokens) {
         if (token.type === 'space') {
@@ -1348,6 +1367,25 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
             const preservedMargin = existingMargins[wordIndex];
             const preservedStretch = existingStretches[wordIndex];
             const preservedNatW = existingNatWidths[wordIndex];
+            const preservedWeight = existingWeights[wordIndex];
+            const preservedManual = existingManualStretches[wordIndex];
+            const preservedAuto = existingAutoStretches[wordIndex];
+
+            let effectiveStretch = preservedStretch;
+            let isAuto = preservedAuto;
+            let isManual = preservedManual;
+
+            if (isAutoStretchActive) {
+                if (!isManual) {
+                    effectiveStretch = optimalScale;
+                    isAuto = true;
+                }
+            } else {
+                if (isAuto && !isManual) {
+                    effectiveStretch = 1.0;
+                    isAuto = false;
+                }
+            }
 
             let wordStyles = [];
             if (preservedMargin) {
@@ -1355,15 +1393,18 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
             }
             let stretchAttr = '';
             let natWAttr = '';
+            let manualAttr = isManual ? ` data-manual-stretch="true"` : '';
+            let autoAttr = isAuto ? ` data-auto-stretch="true"` : '';
+            let weightAttr = preservedWeight ? ` data-weight="${preservedWeight}"` : '';
             let textStyles = [];
-            if (preservedStretch && preservedStretch !== 1) {
-                stretchAttr = ` data-stretch="${preservedStretch}"`;
+            if (effectiveStretch && Math.abs(effectiveStretch - 1) > 0.005) {
+                stretchAttr = ` data-stretch="${effectiveStretch}"`;
                 if (preservedNatW) {
                     natWAttr = ` data-natural-width="${preservedNatW}"`;
-                    wordStyles.push(`width: ${(preservedNatW * preservedStretch).toFixed(2)}px`);
+                    wordStyles.push(`width: ${(preservedNatW * effectiveStretch).toFixed(2)}px`);
                     textStyles.push(`width: ${preservedNatW}px`);
                 }
-                textStyles.push(`display: inline-block`, `vertical-align: baseline`, `transform: scaleX(${preservedStretch})`, `transform-origin: 0 0`);
+                textStyles.push(`display: inline-block`, `vertical-align: baseline`, `transform: scaleX(${effectiveStretch})`, `transform-origin: 0 0`);
             }
             const styleAttr = wordStyles.length ? ` style="${wordStyles.join('; ')};"` : '';
             const textStyleAttr = textStyles.length ? ` style="${textStyles.join('; ')};"` : '';
@@ -1373,6 +1414,12 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
             const hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
             const dotsCount = hasDotConfigs ? activeDotConfig.dots.length : 0;
             const isCustomDotCfg = !!(lineDotConfig.dotConfigId || (view.wordDotConfigs && view.wordDotConfigs[`${srcLineIdx}_${wordIndex}`]));
+
+            const hasWeightOverride = !!preservedWeight;
+            const boldBtnTitle = hasWeightOverride
+                ? (preservedWeight === 'bold' ? 'Đang ép chữ đậm (Nhấp để đổi)' : 'Đang ép chữ thanh (Nhấp để đổi)')
+                : (isGlobalBold ? 'Đang theo mẫu đậm (Nhấp để đổi sang thanh)' : 'Đang theo mẫu thanh (Nhấp để đổi sang đậm)');
+            const boldBtnHtml = `<button type="button" class="btn-word-bold ${hasWeightOverride ? 'is-override' : ''}" title="${boldBtnTitle}"><i class="fa-solid fa-bold"></i></button>`;
 
             const dotBadgeHtml = (isDotActive && wordIndex === 0) ? `
                 <span class="line-dot-wrapper">
@@ -1389,20 +1436,44 @@ view.renderLineElement = function ($line, lineTokens, lineIndex) {
                 </span>` : '';
 
             const rawTokenAttr = ` data-raw="${view.escapeHtml(token.raw || token.text)}"`;
-            html += `<span class="word" data-word-idx="${wordIndex}"${rawTokenAttr}${stretchAttr}${natWAttr}${styleAttr}>` +
+            html += `<span class="word" data-word-idx="${wordIndex}"${rawTokenAttr}${stretchAttr}${natWAttr}${manualAttr}${autoAttr}${weightAttr}${styleAttr}>` +
                 `<span class="word-handle no-print">` +
                     `<span class="btn-word-drag" title="Kéo để dịch chuyển (và các từ phía sau)"><i class="fa-solid fa-up-down-left-right"></i></span>` +
+                    boldBtnHtml +
                     `<span class="btn-word-reset" title="Đặt lại vị trí ban đầu"><i class="fa-solid fa-arrow-rotate-left"></i></span>` +
                     dotBadgeHtml +
                     dotConfigBadgeHtml +
                 `</span>` +
                 `<span class="word-text"${textStyleAttr}>${view.escapeHtml(token.text)}</span>` +
-                `<span class="btn-word-stretch no-print" title="Kéo để kéo giãn chữ (Nhấp đúp để đặt lại cỡ chữ)"></span>` +
+                `<span class="btn-word-stretch no-print" title="Kéo để giãn chữ (Nhấp đúp để giãn chuẩn / đặt lại)"></span>` +
             `</span>`;
             wordIndex++;
         }
     }
     $line.empty().html(html);
+
+    // Measure natural width for any stretched words that do not yet have data-natural-width
+    $line.children('.word[data-stretch]').each(function () {
+        const $w = $(this);
+        if (!$w.attr('data-natural-width')) {
+            const scale = parseFloat($w.attr('data-stretch'));
+            const $wText = $w.children('.word-text');
+            $wText.css({ 'width': '', 'transform': '' });
+            const rect = $wText[0].getBoundingClientRect();
+            const natW = rect.width;
+            if (natW > 0) {
+                $w.attr('data-natural-width', natW);
+                $w.css('width', (natW * scale).toFixed(2) + 'px');
+                $wText.css({
+                    'display': 'inline-block',
+                    'vertical-align': 'baseline',
+                    'width': natW + 'px',
+                    'transform': `scaleX(${scale})`,
+                    'transform-origin': '0 0'
+                });
+            }
+        }
+    });
 
     const lineCustomSpaces = view.lineDotConfigs && view.lineDotConfigs[srcLineIdx] && view.lineDotConfigs[srcLineIdx].spaces !== undefined;
     if (!lineCustomSpaces && (view.userCustomGlobalSpaces === null || view.userCustomGlobalSpaces === undefined)) {
@@ -1441,6 +1512,63 @@ view.updateLines = function (linesData) {
     });
 };
 
+view.applyWordStretch = function ($word, scale, isManual) {
+    if (!$word || !$word.length) return;
+    const $wordText = $word.children('.word-text');
+    if (!$wordText.length) return;
+
+    if (!scale || Math.abs(scale - 1.0) <= 0.005) {
+        // Reset stretch back to 100%
+        $word.css('width', '').removeAttr('data-stretch').removeAttr('data-natural-width').removeAttr('data-manual-stretch').removeAttr('data-auto-stretch');
+        $wordText.css({
+            'width': '',
+            'transform': '',
+            'display': '',
+            'vertical-align': ''
+        });
+    } else {
+        // Measure natural width if not cached
+        let naturalWidth = parseFloat($word.attr('data-natural-width'));
+        if (!naturalWidth) {
+            const currentScale = parseFloat($word.attr('data-stretch')) || 1.0;
+            const origWidth = $wordText[0].style.width;
+            const origTransform = $wordText[0].style.transform;
+            $wordText.css({ 'width': '', 'transform': '' });
+            const rect = $wordText[0].getBoundingClientRect();
+            naturalWidth = rect.width;
+            $wordText.css({ 'width': origWidth, 'transform': origTransform });
+            if (naturalWidth > 0) {
+                $word.attr('data-natural-width', naturalWidth);
+            }
+        }
+
+        if (naturalWidth > 0) {
+            const scaledWidth = Math.round(naturalWidth * scale * 100) / 100;
+            $word.css('width', scaledWidth + 'px');
+            $word.attr('data-stretch', scale.toFixed(4));
+            if (isManual) {
+                $word.attr('data-manual-stretch', 'true').removeAttr('data-auto-stretch');
+            } else {
+                $word.attr('data-auto-stretch', 'true');
+            }
+            $wordText.css({
+                'display': 'inline-block',
+                'vertical-align': 'baseline',
+                'width': naturalWidth + 'px',
+                'transform': 'scaleX(' + scale + ')',
+                'transform-origin': '0 0'
+            });
+        }
+    }
+
+    if (view.isDottingActive()) {
+        const $line = $word.closest('p.line');
+        if ($line.length) {
+            view.renderDotsForLineAndPracticeLines($line);
+        }
+    }
+};
+
 view.setupDragInteractions = function () {
     const $container = $('.board-container');
     let dragState = null;
@@ -1448,7 +1576,7 @@ view.setupDragInteractions = function () {
 
     // Tap / click word to activate handles on touch / mobile devices and select line in toolbar
     $container.on('pointerdown click', '.word', function (e) {
-        if ($(e.target).closest('.btn-word-stretch, .btn-word-drag, .btn-word-reset').length) {
+        if ($(e.target).closest('.btn-word-stretch, .btn-word-drag, .btn-word-reset, .btn-word-bold').length) {
             return;
         }
         $('.word.is-active').not(this).removeClass('is-active');
@@ -1593,6 +1721,20 @@ view.setupDragInteractions = function () {
 
     $container.on('lostpointercapture', '.btn-word-drag', endDrag);
 
+    function toggleOptimalStretch($word) {
+        const currentStretch = parseFloat($word.attr('data-stretch')) || 1.0;
+        const isStretched = $word.attr('data-stretch') && Math.abs(currentStretch - 1.0) > 0.005;
+        const cfg = (window.APP_CONFIG && window.APP_CONFIG.wordStretch) || { stretchTargetPercent: 121.89 };
+        const optimalScale = cfg.stretchTargetPercent / 100;
+
+        if (isStretched) {
+            view.applyWordStretch($word, 1.0);
+        } else {
+            view.applyWordStretch($word, optimalScale, true);
+        }
+        view.triggerAutoSave(true);
+    }
+
     let lastStretchClick = 0;
     let lastStretchEl = null;
 
@@ -1603,19 +1745,11 @@ view.setupDragInteractions = function () {
         const handleEl = this;
         const now = Date.now();
         if (lastStretchEl === handleEl && (now - lastStretchClick) < 400) {
-            // Double-click / double-tap detected: reset stretch only back to 100%
+            // Double-click / double-tap detected: toggle stretch optimal ratio / 100%
             lastStretchClick = 0;
             lastStretchEl = null;
             const $word = $(handleEl).closest('.word');
-            $word.css('width', '').removeAttr('data-stretch').removeAttr('data-natural-width');
-            $word.children('.word-text').css({
-                'width': '',
-                'transform': ''
-            });
-            if (view.isDottingActive()) {
-                const $line = $word.closest('p.line');
-                view.renderDotsForLineAndPracticeLines($line);
-            }
+            toggleOptimalStretch($word);
             e.preventDefault();
             e.stopPropagation();
             return;
@@ -1769,6 +1903,12 @@ view.setupDragInteractions = function () {
 
         if (stretchState.$word) {
             stretchState.$word.removeClass('is-stretching');
+            const finalScale = parseFloat(stretchState.$word.attr('data-stretch')) || 1.0;
+            if (Math.abs(finalScale - 1.0) > 0.005) {
+                stretchState.$word.attr('data-manual-stretch', 'true').removeAttr('data-auto-stretch');
+            } else {
+                stretchState.$word.removeAttr('data-manual-stretch').removeAttr('data-auto-stretch');
+            }
         }
         if (stretchState.$stretchBtn) {
             stretchState.$stretchBtn.removeClass('is-stretching is-snapped');
@@ -1786,24 +1926,77 @@ view.setupDragInteractions = function () {
 
     $container.on('lostpointercapture', '.btn-word-stretch', endStretch);
 
-    // Double-click on .btn-word-stretch: reset stretch only back to 100%
+    // Double-click on .btn-word-stretch: toggle stretch between optimal ratio and 100%
     $container.on('dblclick', '.btn-word-stretch', function (e) {
         e.stopPropagation();
         e.preventDefault();
         const $word = $(this).closest('.word');
-        $word.css('width', '').removeAttr('data-stretch').removeAttr('data-natural-width');
-        $word.children('.word-text').css({
-            'width': '',
-            'transform': ''
-        });
+        toggleOptimalStretch($word);
+    });
+
+    // Word bold / normal weight override button
+    let lastBoldClickTime = 0;
+    $container.on('pointerdown click', '.btn-word-bold', function (e) {
+        if (e.type === 'pointerdown' && e.button !== undefined && e.button !== 0) return;
+        const now = Date.now();
+        if (now - lastBoldClickTime < 250) {
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+        }
+        lastBoldClickTime = now;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const $btn = $(this);
+        const $word = $btn.closest('.word');
+        const isGlobalBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+        const currentWeight = $word.attr('data-weight') || (isGlobalBold ? 'bold' : 'normal');
+
+        const newWeight = (currentWeight === 'bold') ? 'normal' : 'bold';
+
+        if ((newWeight === 'bold' && isGlobalBold) || (newWeight === 'normal' && !isGlobalBold)) {
+            $word.removeAttr('data-weight');
+            $btn.removeClass('is-override');
+            $btn.attr('title', isGlobalBold ? 'Đang theo mẫu đậm (Nhấp để đổi sang thanh)' : 'Đang theo mẫu thanh (Nhấp để đổi sang đậm)');
+        } else {
+            $word.attr('data-weight', newWeight);
+            $btn.addClass('is-override');
+            $btn.attr('title', newWeight === 'bold' ? 'Đang ép chữ đậm (Nhấp để đổi)' : 'Đang ép chữ thanh (Nhấp để đổi)');
+        }
+
+        // Re-measure natural width if stretched so scaling matches new weight glyphs
+        const currentStretch = parseFloat($word.attr('data-stretch'));
+        if (currentStretch && Math.abs(currentStretch - 1) > 0.005) {
+            $word.removeAttr('data-natural-width');
+            const $wordText = $word.children('.word-text');
+            $wordText.css({ 'width': '', 'transform': '' });
+            const rect = $wordText[0].getBoundingClientRect();
+            const natW = rect.width;
+            if (natW > 0) {
+                $word.attr('data-natural-width', natW);
+                $word.css('width', (natW * currentStretch).toFixed(2) + 'px');
+                $wordText.css({
+                    'display': 'inline-block',
+                    'vertical-align': 'baseline',
+                    'width': natW + 'px',
+                    'transform': `scaleX(${currentStretch})`,
+                    'transform-origin': '0 0'
+                });
+            }
+        }
+
         if (view.isDottingActive()) {
             const $line = $word.closest('p.line');
-            view.renderDotsForLineAndPracticeLines($line);
+            if ($line.length) {
+                view.renderDotsForLineAndPracticeLines($line);
+            }
         }
+
         view.triggerAutoSave(true);
     });
 
-    // Reset button .btn-word-reset: resets BOTH margin-left and stretch
+    // Reset button .btn-word-reset: resets margin-left, stretch, and bold weight override
     let lastResetTime = 0;
     $container.on('pointerdown click', '.btn-word-reset', function (e) {
         if (e.type === 'pointerdown' && e.button !== undefined && e.button !== 0) return;
@@ -1818,15 +2011,9 @@ view.setupDragInteractions = function () {
         e.preventDefault();
         const $word = $(this).closest('.word');
         $word.addClass('is-active');
-        $word.css({ 'margin-left': '0px', 'width': '' }).removeAttr('data-stretch').removeAttr('data-natural-width');
-        $word.children('.word-text').css({
-            'width': '',
-            'transform': ''
-        });
-        if (view.isDottingActive()) {
-            const $line = $word.closest('p.line');
-            view.renderDotsForLineAndPracticeLines($line);
-        }
+        $word.css({ 'margin-left': '0px' }).removeAttr('data-weight');
+        $word.find('.btn-word-bold').removeClass('is-override');
+        view.applyWordStretch($word, 1.0);
         view.triggerAutoSave(true);
     });
 
@@ -1835,12 +2022,9 @@ view.setupDragInteractions = function () {
         if ($(e.target).closest('.word, .line-dot-wrapper, .line-dot-popover').length) return;
         $(this).find('.word').each(function () {
             this.style.marginLeft = '0px';
-            this.style.width = '';
-            $(this).removeAttr('data-stretch').removeAttr('data-natural-width');
-            $(this).children('.word-text').css({
-                'width': '',
-                'transform': ''
-            });
+            $(this).removeAttr('data-weight');
+            $(this).find('.btn-word-bold').removeClass('is-override');
+            view.applyWordStretch($(this), 1.0);
         });
         if (view.isDottingActive()) {
             view.renderDotsForLineAndPracticeLines($(this));
@@ -2948,6 +3132,19 @@ view.changeWeight = function (isBold) {
     } else {
         $('.result-text, #result').removeClass('bold');
     }
+    $('.word').each(function () {
+        const $w = $(this);
+        const weight = $w.attr('data-weight');
+        const $btn = $w.find('.btn-word-bold');
+        if (!$btn.length) return;
+        if (weight) {
+            $btn.addClass('is-override');
+            $btn.attr('title', weight === 'bold' ? 'Đang ép chữ đậm (Nhấp để đổi)' : 'Đang ép chữ thanh (Nhấp để đổi)');
+        } else {
+            $btn.removeClass('is-override');
+            $btn.attr('title', isBold ? 'Đang theo mẫu đậm (Nhấp để đổi sang thanh)' : 'Đang theo mẫu thanh (Nhấp để đổi sang đậm)');
+        }
+    });
 };
 
 view.changeStyle = function (isItalics) {
@@ -2955,6 +3152,34 @@ view.changeStyle = function (isItalics) {
         $(".grid, .board").addClass('italics');
     } else {
         $(".grid, .board").removeClass('italics');
+    }
+};
+
+view.changeAutoStretch = function (enabled) {
+    const cfg = (window.APP_CONFIG && window.APP_CONFIG.wordStretch) || { stretchTargetPercent: 121.89 };
+    const optimalScale = cfg.stretchTargetPercent / 100;
+    const $words = $('#result, .result-text').find('.word');
+
+    if (enabled) {
+        $words.each(function () {
+            const $w = $(this);
+            if (!$w.attr('data-manual-stretch')) {
+                view.applyWordStretch($w, optimalScale, false);
+            }
+        });
+    } else {
+        $words.each(function () {
+            const $w = $(this);
+            if ($w.attr('data-auto-stretch') && !$w.attr('data-manual-stretch')) {
+                view.applyWordStretch($w, 1.0);
+            }
+        });
+    }
+
+    if (view.isDottingActive()) {
+        $('#result, .result-text').find('p.line').each(function () {
+            view.renderDotsForLineAndPracticeLines($(this));
+        });
     }
 };
 
@@ -3077,7 +3302,8 @@ view.captureWorkspaceState = function () {
             boardColor: $('#board-color-select').val() || 'black',
             fontColor: $('#font-color-input').val() || '#ffffff',
             weight: $('#weight-checkbox').is(':checked'),
-            style: $('#style-checkbox').is(':checked')
+            style: $('#style-checkbox').is(':checked'),
+            autoStretch: $('#autostretch-checkbox').is(':checked')
         },
         dotting: {
             enabled: $('#dotting-checkbox').is(':checked'),
@@ -3097,7 +3323,7 @@ view.captureWorkspaceState = function () {
         wordLayout: {}
     };
 
-    // Capture word layout overrides (margins and stretch factors)
+    // Capture word layout overrides (margins, stretch factors, weights)
     $('#result').children('p.line').each(function (lineIdx) {
         const lineOverrides = {};
         let hasOverrides = false;
@@ -3106,11 +3332,17 @@ view.captureWorkspaceState = function () {
             const ml = this.style.marginLeft;
             const stretch = $(this).attr('data-stretch');
             const natW = $(this).attr('data-natural-width');
-            if (ml || (stretch && stretch !== '1')) {
+            const weight = $(this).attr('data-weight');
+            const manual = $(this).attr('data-manual-stretch');
+            const auto = $(this).attr('data-auto-stretch');
+            if (ml || (stretch && stretch !== '1') || weight) {
                 lineOverrides[wIdx] = {
                     marginLeft: ml || null,
                     stretch: stretch ? parseFloat(stretch) : null,
-                    naturalWidth: natW ? parseFloat(natW) : null
+                    naturalWidth: natW ? parseFloat(natW) : null,
+                    weight: weight || null,
+                    manualStretch: manual ? true : null,
+                    autoStretch: auto ? true : null
                 };
                 hasOverrides = true;
             }
@@ -3137,7 +3369,7 @@ view.applyWorkspaceState = function (state) {
             $('#sample-select').val(state.sampleSelect);
         }
 
-        // 2. Settings (font size, board, color, bold, italic)
+        // 2. Settings (font size, board, color, bold, italic, autoStretch)
         if (state.settings) {
             if (state.settings.fontSize) {
                 $('#font-size-select').val(state.settings.fontSize);
@@ -3158,6 +3390,9 @@ view.applyWorkspaceState = function (state) {
             if (state.settings.style !== undefined) {
                 $('#style-checkbox').prop('checked', !!state.settings.style);
                 view.changeStyle(!!state.settings.style);
+            }
+            if (state.settings.autoStretch !== undefined) {
+                $('#autostretch-checkbox').prop('checked', !!state.settings.autoStretch);
             }
         }
 
@@ -3189,7 +3424,7 @@ view.applyWorkspaceState = function (state) {
         view.syncLineDotConfigs();
         view.render();
 
-        // 5. Apply Word Layout overrides (margins and stretch factors)
+        // 5. Apply Word Layout overrides (margins, stretch factors, weights)
         if (state.wordLayout && typeof state.wordLayout === 'object') {
             const $lines = $('#result').children('p.line');
             for (const [lineIdxStr, wordMap] of Object.entries(state.wordLayout)) {
@@ -3201,6 +3436,16 @@ view.applyWorkspaceState = function (state) {
                         if ($word.length && override) {
                             if (override.marginLeft) {
                                 $word.css('margin-left', override.marginLeft);
+                            }
+                            if (override.weight) {
+                                $word.attr('data-weight', override.weight);
+                                $word.find('.btn-word-bold').addClass('is-override');
+                            }
+                            if (override.manualStretch) {
+                                $word.attr('data-manual-stretch', 'true');
+                            }
+                            if (override.autoStretch) {
+                                $word.attr('data-auto-stretch', 'true');
                             }
                             if (override.stretch && override.stretch !== 1) {
                                 $word.attr('data-stretch', override.stretch);
@@ -3533,12 +3778,14 @@ view.exportBlackboardToPng = async function () {
                 const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
                 const rawWord = $(wordEl).attr('data-raw') || '';
                 const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+                const weight = $(wordEl).attr('data-weight') || null;
                 words.push({
                     text: wordText,
                     raw: rawWord,
                     offsetLeft: wordEl.offsetLeft,
                     offsetWidth: wordEl.offsetWidth,
-                    stretch: stretch
+                    stretch: stretch,
+                    weight: weight
                 });
             });
 
@@ -3554,13 +3801,14 @@ view.exportBlackboardToPng = async function () {
                     ctx.translate(0, -baselineY);
                 }
 
-                ctx.font = `${isBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
                 ctx.fillStyle = textColor;
                 ctx.textBaseline = 'alphabetic';
 
                 words.forEach(word => {
                     const xPos = startX + (word.offsetLeft * S);
                     ctx.fillStyle = textColor;
+                    const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
                     if (word.stretch && word.stretch !== 1.0) {
                         ctx.save();
                         ctx.translate(xPos, baselineY);
@@ -3598,7 +3846,8 @@ view.exportBlackboardToPng = async function () {
                             raw: $(wEl).attr('data-raw') || '',
                             offsetLeft: wEl.offsetLeft,
                             offsetWidth: wEl.offsetWidth,
-                            stretch: parseFloat($(wEl).attr('data-stretch')) || 1.0
+                            stretch: parseFloat($(wEl).attr('data-stretch')) || 1.0,
+                            weight: $(wEl).attr('data-weight') || null
                         });
                     });
                 }
@@ -3689,6 +3938,10 @@ view.exportBlackboardToPng = async function () {
                                         wordsToDraw.forEach(w => {
                                             const xPos = startX + (w.offsetLeft * S) + shiftX;
                                             const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                            if (!isDotted) {
+                                                const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
+                                                ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                            }
                                             drawText(textToDraw, xPos, baselineY, w.stretch || 1.0);
                                         });
                                     }
@@ -3880,12 +4133,14 @@ view.exportWhite11x14ToPng = async function () {
                     const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
                     const rawWord = $(wordEl).attr('data-raw') || '';
                     const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+                    const weight = $(wordEl).attr('data-weight') || null;
                     words.push({
                         text: wordText,
                         raw: rawWord,
                         offsetLeft: wordEl.offsetLeft,
                         offsetWidth: wordEl.offsetWidth,
-                        stretch: stretch
+                        stretch: stretch,
+                        weight: weight
                     });
                 });
 
@@ -3896,6 +4151,8 @@ view.exportWhite11x14ToPng = async function () {
                 ctx.fillStyle = textColor;
                 words.forEach(word => {
                     const xPos = gridOriginX + word.offsetLeft;
+                    const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
                     if (word.stretch && word.stretch !== 1.0) {
                         ctx.save();
                         ctx.translate(xPos, yPos);
@@ -3930,7 +4187,8 @@ view.exportWhite11x14ToPng = async function () {
                                     text: $(this).find('.word-text').text() || $(this).text(),
                                     raw: $(this).attr('data-raw') || '',
                                     offsetLeft: this.offsetLeft,
-                                    stretch: parseFloat($(this).attr('data-stretch')) || 1.0
+                                    stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
+                                    weight: $(this).attr('data-weight') || null
                                 });
                             });
                         }
@@ -4020,6 +4278,10 @@ view.exportWhite11x14ToPng = async function () {
                                             wordsToDraw.forEach(w => {
                                                 const xPos = gridOriginX + w.offsetLeft + shiftX;
                                                 const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                                if (!isDotted) {
+                                                    const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
+                                                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                                }
                                                 drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
                                             });
                                         }
@@ -4112,12 +4374,14 @@ view.exportToPng = async function () {
             const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
             const rawWord = $(wordEl).attr('data-raw') || '';
             const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
             lineWords.push({
                 text: wordText,
                 raw: rawWord,
                 offsetLeft: wordEl.offsetLeft,
                 offsetWidth: wordEl.offsetWidth,
-                stretch: stretch
+                stretch: stretch,
+                weight: weight
             });
         });
         lines.push({
@@ -4267,6 +4531,8 @@ view.exportToPng = async function () {
         ctx.fillStyle = textColor;
         lineObj.words.forEach(word => {
             const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
             if (word.stretch && word.stretch !== 1.0) {
                 ctx.save();
                 ctx.translate(xPos, yPos);
@@ -4403,6 +4669,10 @@ view.exportToPng = async function () {
                                 wordsToDraw.forEach(w => {
                                     const xPos = gridOriginX + w.offsetLeft + shiftX;
                                     const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                    if (!isDotted) {
+                                        const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
+                                        ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    }
                                     drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
                                 });
                             }
