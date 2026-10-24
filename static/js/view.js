@@ -721,7 +721,8 @@ view.renderDotsForLine = function ($line, lineTokens, lineIndex, config) {
                 text: $w.find('.word-text').text() || $w.text(),
                 raw: $w.attr('data-raw') || '',
                 offsetLeft: this.offsetLeft,
-                stretch: parseFloat($w.attr('data-stretch')) || 1.0
+                stretch: parseFloat($w.attr('data-stretch')) || 1.0,
+                weight: $w.attr('data-weight') || null
             });
         });
     } else {
@@ -750,7 +751,8 @@ view.renderDotsForLine = function ($line, lineTokens, lineIndex, config) {
                     text: $w.find('.word-text').text() || $w.text(),
                     raw: $w.attr('data-raw') || '',
                     offsetLeft: this.offsetLeft,
-                    stretch: parseFloat($w.attr('data-stretch')) || 1.0
+                    stretch: parseFloat($w.attr('data-stretch')) || 1.0,
+                    weight: $w.attr('data-weight') || null
                 });
             });
         }
@@ -850,7 +852,8 @@ view.renderDotsForLine = function ($line, lineTokens, lineIndex, config) {
                         } else {
                             displayText = model.getUnicodeStr(charUnit);
                         }
-                        const $span = $(`<span class="${outlineClass}" style="left: ${x}px; ${transformStyle}">${view.escapeHtml(displayText)}</span>`);
+                        const weightAttr = (word0 && word0.weight) ? ` data-weight="${word0.weight}"` : '';
+                        const $span = $(`<span class="${outlineClass}"${weightAttr} style="left: ${x}px; ${transformStyle}">${view.escapeHtml(displayText)}</span>`);
                         $dotsLayer.append($span);
                     } else if (outlineInfo.scope === 'all') {
                         wordsInfo.forEach(w => {
@@ -863,7 +866,8 @@ view.renderDotsForLine = function ($line, lineTokens, lineIndex, config) {
                             } else {
                                 displayText = w.text || model.getUnicodeStr(w.raw);
                             }
-                            const $span = $(`<span class="${outlineClass}" style="left: ${x}px; ${transformStyle}">${view.escapeHtml(displayText)}</span>`);
+                            const weightAttr = (w && w.weight) ? ` data-weight="${w.weight}"` : '';
+                            const $span = $(`<span class="${outlineClass}"${weightAttr} style="left: ${x}px; ${transformStyle}">${view.escapeHtml(displayText)}</span>`);
                             $dotsLayer.append($span);
                         });
                     }
@@ -2255,13 +2259,19 @@ view.setupDragInteractions = function () {
             `}
         `;
 
+        const rawWord = $word.attr('data-raw') || '';
+        const wordWeight = $word.attr('data-weight') || null;
+        const isGlobalBold = $('#font-weight-select').val() === 'bold' || $('#result').hasClass('bold');
+        const finalWeight = wordWeight ? wordWeight : (isGlobalBold ? 'bold' : 'normal');
+        const displayGlyph = (rawWord && model.getWordFirstGlyph) ? model.getWordFirstGlyph(rawWord) : (model.getUnicodeStr ? model.getUnicodeStr(charUnit) : charUnit);
+
         const $popover = $(`
             <div class="word-dot-config-popover no-print" data-line-idx="${lineIdx}" data-word-idx="${wordIdx}" data-char="${view.escapeHtml(charUnit)}">
                 <div class="popover-header">
                     <div class="d-flex align-items-center gap-1">
                         <i class="fa-solid fa-braille text-danger"></i>
                         <strong>Cấu hình chấm:</strong>
-                        <span class="badge bg-primary text-white" style="font-family: HP001, serif; font-size: 0.95rem; line-height: 1;">${view.escapeHtml(charUnit)}</span>
+                        <span class="badge bg-primary text-white" style="font-family: HP001, serif; font-size: 0.95rem; line-height: 1; font-weight: ${finalWeight};">${view.escapeHtml(displayGlyph)}</span>
                     </div>
                     <button type="button" class="popover-close" title="Đóng">&times;</button>
                 </div>
@@ -2551,8 +2561,38 @@ view.openFreestyleDottingModal = function (charUnit, lineIdx, wordIdx) {
     const $modal = $('#freestyleDottingModal');
     if (!$modal.length) return;
 
+    // Resolve word info (raw, weight, and contextual display glyph)
+    let rawWord = '';
+    let wordWeight = null;
+    let $word = null;
+
+    const $targetLine = $(`p.line[data-source-line-idx="${lineIdx}"][data-is-practice="false"]`).first();
+    if ($targetLine.length) {
+        $word = $targetLine.find(`.word[data-word-idx="${wordIdx}"]`).first();
+    }
+    if (!$word || !$word.length) {
+        const $lines = $('#result p.line');
+        if ($lines.length > lineIdx) {
+            $word = $lines.eq(lineIdx).find(`.word[data-word-idx="${wordIdx}"]`).first();
+        }
+    }
+    if ($word && $word.length) {
+        rawWord = $word.attr('data-raw') || '';
+        wordWeight = $word.attr('data-weight') || null;
+    }
+    if (!rawWord) {
+        const rawInputLines = ($('#input').val() || '').split('\n');
+        const lineText = (rawInputLines[lineIdx] !== undefined ? rawInputLines[lineIdx].trim() : '') || rawInputLines.find(l => l.trim().length > 0) || '';
+        const words = lineText.split(/\s+/).filter(w => w.length > 0);
+        rawWord = words[wordIdx] || words[0] || charUnit;
+    }
+
+    const isGlobalBold = $('#font-weight-select').val() === 'bold' || $('#result').hasClass('bold');
+    const finalWeight = wordWeight ? wordWeight : (isGlobalBold ? 'bold' : 'normal');
+    const displayGlyph = (rawWord && model.getWordFirstGlyph) ? model.getWordFirstGlyph(rawWord) : (model.getUnicodeStr ? model.getUnicodeStr(charUnit) : charUnit);
+
     // 2. Set title and glyph badge
-    $('#freestyleCharBadge').text(charUnit);
+    $('#freestyleCharBadge').text(displayGlyph).css('font-weight', finalWeight);
     $('#freestyleApplyAllText').text(`Áp dụng cho tất cả chữ '${charUnit}' trong bài viết`);
     $('#freestyleApplyAll').prop('checked', false);
 
@@ -2632,7 +2672,7 @@ view.openFreestyleDottingModal = function (charUnit, lineIdx, wordIdx) {
         <text x="${ORIGIN_X + 6}" y="${HEIGHT - 8}" font-size="10.5" font-weight="bold" fill="#2563eb">X=0</text>
 
         <!-- Render Glyph -->
-        <text id="freestylePreviewGlyph" x="${ORIGIN_X}" y="${BASELINE_Y}" font-family="HP001, serif" font-size="${FONT_SIZE}" fill="#1e293b" font-weight="bold" pointer-events="none" style="user-select: none;">${view.escapeHtml(charUnit)}</text>
+        <text id="freestylePreviewGlyph" x="${ORIGIN_X}" y="${BASELINE_Y}" font-family="HP001, serif" font-size="${FONT_SIZE}" fill="#1e293b" font-weight="${finalWeight}" pointer-events="none" style="user-select: none;">${view.escapeHtml(displayGlyph)}</text>
 
         <!-- SVG Dots Layer -->
         <g id="freestyleSvgDotsLayer"></g>
@@ -3933,6 +3973,11 @@ view.exportBlackboardToPng = async function () {
                                     if (outlineInfo.scope === 'first') {
                                         const xPos = baseWordX + shiftX;
                                         const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                        if (!isDotted) {
+                                            const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                            const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                            ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                        }
                                         drawText(textToDraw, xPos, baselineY, firstStretch);
                                     } else if (outlineInfo.scope === 'all') {
                                         wordsToDraw.forEach(w => {
@@ -4273,6 +4318,11 @@ view.exportWhite11x14ToPng = async function () {
                                         if (outlineInfo.scope === 'first') {
                                             const xPos = baseWordX + shiftX;
                                             const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                            if (!isDotted) {
+                                                const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                                const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                                ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                            }
                                             drawText(textToDraw, xPos, yPos, firstStretch);
                                         } else if (outlineInfo.scope === 'all') {
                                             wordsToDraw.forEach(w => {
@@ -4664,6 +4714,11 @@ view.exportToPng = async function () {
                             if (outlineInfo.scope === 'first') {
                                 const xPos = baseWordX + shiftX;
                                 const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                if (!isDotted) {
+                                    const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                    const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                    ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                }
                                 drawText(textToDraw, xPos, yPos, firstStretch);
                             } else if (outlineInfo.scope === 'all') {
                                 wordsToDraw.forEach(w => {

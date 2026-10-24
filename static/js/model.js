@@ -27,12 +27,18 @@ model.buildGlyphCodeMap = function () {
                 if (type && type.accent) {
                     for (const [accName, accVal] of Object.entries(type.accent)) {
                         if (accVal !== undefined && accVal !== null) {
-                            String(accVal).split(',').forEach(codeStr => {
-                                const code = parseInt(codeStr.trim(), 10);
-                                if (!isNaN(code)) {
-                                    model.glyphCodeMap[code] = key;
-                                    model.glyphCodeMap[String.fromCharCode(code)] = key;
+                            const codes = String(accVal).split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                            // If this is a compound key (key.length > 1), only single ligature codes (> 255) can map to it.
+                            // NEVER map individual constituent letters (like 104 'h' in 'nh' or 111 'o' in 'oon') to a compound key!
+                            if (key.length > 1 && codes.length > 1) {
+                                continue;
+                            }
+                            codes.forEach(code => {
+                                if (key.length > 1 && code <= 255) {
+                                    return;
                                 }
+                                model.glyphCodeMap[code] = key;
+                                model.glyphCodeMap[String.fromCharCode(code)] = key;
                             });
                         }
                     }
@@ -205,17 +211,52 @@ model.getFirstCharUnit = function(word) {
         }
     }
 
-    // 2. Check if first char is a converted font glyph (or mapped glyph code)
+    // 2. Check if first char is a converted font glyph (or mapped glyph code > 255)
     const firstChar = word.charAt(0);
     const firstCharCode = word.charCodeAt(0);
     if (!model.glyphCodeMap && model.glyphs) {
         model.buildGlyphCodeMap();
     }
-    if (model.glyphCodeMap && (model.glyphCodeMap[firstChar] || model.glyphCodeMap[firstCharCode])) {
+    // Only look up converted glyphs if code > 255 (i.e. not standard ASCII / Latin)
+    if (firstCharCode > 255 && model.glyphCodeMap && (model.glyphCodeMap[firstChar] || model.glyphCodeMap[firstCharCode])) {
         return model.glyphCodeMap[firstChar] || model.glyphCodeMap[firstCharCode];
     }
 
     return firstChar;
+};
+
+model.getWordFirstGlyph = function(word) {
+    if (!word) return 'a';
+    word = word.trim();
+    if (!word) return 'a';
+    const charArr = word.split('');
+    let i = 0;
+    while (i < charArr.length - 1) {
+        let currChar = charArr[i];
+        let nextChar = charArr[i + 1];
+        if (['kh', 'nh', 'ch', 'gh', 'ph', 'th', 'Gh'].includes(currChar + nextChar)) {
+            charArr[i] = currChar + nextChar;
+            charArr.splice(i + 1, 1);
+        }
+        i++;
+    }
+    while (i < charArr.length - 2) {
+        let currChar = charArr[i];
+        let nextChar = charArr[i + 1];
+        let nextChar2 = charArr[i + 2];
+        if (['ooc', 'oóc', 'oọc', 'oon', 'oón', 'oòn'].includes(currChar + nextChar + nextChar2)) {
+            charArr[i] = currChar + nextChar + nextChar2;
+            charArr.splice(i + 1, 2);
+        }
+        i++;
+    }
+    const baseChars = charArr.map(char => (typeof utils !== 'undefined' && utils.removeAccents) ? utils.removeAccents(char) : char);
+    const base = baseChars[0];
+    const curr = charArr[0];
+    const prev = null;
+    const next = charArr.length > 1 && (typeof utils !== 'undefined' && utils.isLetter(baseChars[1])) ? baseChars[1] : null;
+    const glyph = model.getGlyph(base, prev, curr, next);
+    return glyph || (typeof model.getUnicodeStr === 'function' ? model.getUnicodeStr(curr) : curr);
 };
 
 model.getGlyphDotConfigs = function(charUnit) {

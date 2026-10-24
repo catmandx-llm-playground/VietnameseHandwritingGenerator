@@ -783,6 +783,14 @@ body.is-word-stretching {
     print-color-adjust: exact !important;
 }
 
+.guide-outline-word[data-weight="bold"] {
+    font-weight: bold !important;
+}
+
+.guide-outline-word[data-weight="normal"] {
+    font-weight: normal !important;
+}
+
 /* 1. Opacity-based faint outline (Preferred) */
 .guide-outline-word,
 .guide-outline-word.guide-outline-faint {
