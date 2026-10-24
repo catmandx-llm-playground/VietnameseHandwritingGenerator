@@ -27,6 +27,15 @@
   - `.word, .word-text, .word-space` inside `.board.blackboard` must have `line-height: 1 !important; vertical-align: baseline !important;`.
   - **Never apply CSS Grid multiline line-height capping (`76.8px` or `153.6px`) to `.board.blackboard`**, as this applies negative half-leading to the large font ($144.66\text{px}$ / $281.5\text{px}$), shifting the text $34\text{px}$–$68\text{px}$ above the guideline and displacing italicized text horizontally.
 
+## 11x14 Notebook Layout Export Metrics & Invariants
+- **Scope Isolation**: Export rendering logic (Canvas PNG/PDF via `view.exportWhite11x14ToPng` and SVG via `view.renderWhite11x14SvgPage` in `static/js/view.js`) is completely isolated from on-screen DOM styles (`.board.white_11x14`, `.grid`, `.guide-dot`). Changes to export boldness or dot sizes do not mutate web view presentation.
+- **Grid Thickness Constants**:
+  - `gridLineWidthMajor = 1.4;` (30% reduction from 2.0 baseline)
+  - `gridLineWidthMinor = 0.7;` (30% reduction from 1.0 baseline)
+  - Colors: `majorColor = 'rgba(60, 75, 115, 0.9)'`, `minorColor = 'rgba(90, 115, 165, 0.7)'`.
+- **Guide Dot Radius Constants**:
+  - `dotRadius = isSmall ? 1.25 : 1.75;` (50% reduction from 2.5 / 3.5 baseline).
+
 ## Browser Testing Priority
 When testing layout, rendering, or features, prioritize browser compatibility in this order:
 1. **Google Chrome** (Primary target)
