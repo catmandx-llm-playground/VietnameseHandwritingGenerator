@@ -369,6 +369,7 @@ view.init = function () {
     // Trigger initial render
     view.render();
     view.setupProjectDragAndDrop();
+    view.initExportControls();
 };
 
 view.isDottingActive = function () {
@@ -3250,7 +3251,7 @@ view.downloadFont = function (fontType) {
     document.body.removeChild(link);
 };
 
-view.generateFileName = function (layoutPrefix, text) {
+view.generateFileName = function (layoutPrefix, text, ext = 'png') {
     let cleanText = (text || '')
         .toLowerCase()
         .trim()
@@ -3263,11 +3264,36 @@ view.generateFileName = function (layoutPrefix, text) {
     let prefix = layoutPrefix || 'blackboard';
     let base = `${prefix}_${cleanText}`;
 
-    // Max 50 characters total including '.png' (46 chars for base)
-    if (base.length > 46) {
-        base = base.substring(0, 46).replace(/_+$/, '');
+    const extension = ext.startsWith('.') ? ext : ('.' + ext);
+    const maxBaseLen = 50 - extension.length;
+    if (base.length > maxBaseLen) {
+        base = base.substring(0, maxBaseLen).replace(/_+$/, '');
     }
-    return base + '.png';
+    return base + extension;
+};
+
+view.downloadSvg = function (svgContent, fileName) {
+    return new Promise((resolve) => {
+        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = fileName.endsWith('.svg') ? fileName : (fileName + '.svg');
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            if (document.body.contains(a)) {
+                document.body.removeChild(a);
+            }
+            resolve();
+        }, 300);
+        setTimeout(() => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) {}
+        }, 60000);
+    });
 };
 
 view.downloadCanvasAsPng = function (canvas, fileName) {
@@ -3767,258 +3793,425 @@ view.setupProjectDragAndDrop = function () {
     });
 };
 
-view.exportBlackboardToPng = async function () {
-    const $boards = $('.board.blackboard');
-    if (!$boards.length) return;
+// Full export implementation for Handwriting Generator
+// Supports PNG (2x, 4x, 6x, 8x), SVG (Vector), PDF (A4 Printable)
+
+view.escapeXml = function (str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+};
+
+view.isMobileDevice = function () {
+    if (typeof window === 'undefined') return false;
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isSmallScreen = window.innerWidth <= 768;
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    return isMobileUA || (isTouch && isSmallScreen);
+};
+
+view.getExportScale = function () {
+    const val = parseInt($('#export-scale-select').val(), 10);
+    if (!isNaN(val) && val >= 1 && val <= 16) {
+        return val;
+    }
+    return view.isMobileDevice() ? 4 : 8;
+};
+
+view.initExportControls = function () {
+    const isMobile = view.isMobileDevice();
+    const autoScale = isMobile ? '4' : '8';
+
+    // Auto-select resolution based on device type: mobile 4x, desktop 8x
+    $('#export-scale-select').val(autoScale);
+    $('#export-type-select').val('png');
+
+    view.updateExportUI();
+
+    $('#export-type-select').on('change', function () {
+        view.updateExportUI();
+    });
+
+    $('#export-scale-select').on('change', function () {
+        view.updateExportUI();
+    });
+
+    // Dropdown toggle on button click
+    $('#btn-export-dropdown').on('click', function (e) {
+        e.stopPropagation();
+        $('#export-dropdown').toggleClass('is-open');
+    });
+
+    // Dismiss on click outside
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#export-dropdown').length) {
+            $('#export-dropdown').removeClass('is-open');
+        }
+    });
+
+    // Enter key inside dropdown triggers download
+    $('.export-dropdown-content').on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            view.exportFile();
+        }
+    });
+};
+
+view.updateExportUI = function () {
+    const type = $('#export-type-select').val() || 'png';
+    const scale = $('#export-scale-select').val() || '8';
+    const isMobile = view.isMobileDevice();
+    const autoScale = isMobile ? '4' : '8';
+    const isOverridden = (scale !== autoScale);
+
+    let mainLabel = 'Tải ảnh (PNG)';
+    let actionLabel = `Tải về ngay (PNG ${scale}x)`;
+
+    if (type === 'svg') {
+        mainLabel = 'Tải vector (SVG)';
+        actionLabel = 'Tải về ngay (SVG Vector)';
+        $('#export-scale-select').prop('disabled', true);
+        $('#export-scale-field').css('opacity', '0.5');
+        $('#export-device-hint').html('<i class="fa-solid fa-circle-info" style="color: #0284c7;"></i> Định dạng Vector vô cực, phóng to không vỡ hạt.');
+    } else if (type === 'pdf') {
+        mainLabel = 'Tải tài liệu (PDF)';
+        actionLabel = `Tải về ngay (PDF A4 - ${scale}x)`;
+        $('#export-scale-select').prop('disabled', false);
+        $('#export-scale-field').css('opacity', '1');
+        const hintText = isOverridden
+            ? `<i class="fa-solid fa-sliders" style="color: #f59e0b;"></i> Đã tùy chỉnh <strong>${scale}x</strong> cho PDF khổ in A4.`
+            : `<i class="fa-solid ${isMobile ? 'fa-mobile-screen' : 'fa-desktop'}" style="color: #10b981;"></i> Đã tự chọn <strong>${scale}x</strong> cho PDF (${isMobile ? 'tối ưu RAM di động' : 'sắc nét máy tính'}).`;
+        $('#export-device-hint').html(hintText);
+    } else {
+        // PNG
+        mainLabel = 'Tải ảnh (PNG)';
+        actionLabel = `Tải về ngay (PNG ${scale}x)`;
+        $('#export-scale-select').prop('disabled', false);
+        $('#export-scale-field').css('opacity', '1');
+        const deviceName = isMobile ? 'di động' : 'máy tính';
+        const hintText = isOverridden
+            ? `<i class="fa-solid fa-sliders" style="color: #f59e0b;"></i> Đã tùy chỉnh sang <strong>${scale}x</strong> (${scale >= '6' ? 'siêu nét' : 'tiết kiệm dung lượng'}).`
+            : `<i class="fa-solid ${isMobile ? 'fa-mobile-screen' : 'fa-desktop'}" style="color: #10b981;"></i> Đã tự chọn <strong>${scale}x</strong> cho ${deviceName} (${isMobile ? 'tránh tràn RAM' : 'bản in siêu nét'}).`;
+        $('#export-device-hint').html(hintText);
+    }
+
+    $('#btn-export-label').text(mainLabel);
+    $('#btn-execute-export-label').text(actionLabel);
+};
+
+view._fontBase64Cache = null;
+view.loadFontBase64 = async function () {
+    if (view._fontBase64Cache) return view._fontBase64Cache;
+    view._fontBase64Cache = {};
+    const fontDefs = [
+        { key: 'HP001N', url: '/static/font/HP001N30.ttf' },
+        { key: 'HP001B', url: '/static/font/HP001B30.ttf' },
+        { key: 'HP001TD', url: '/static/font/HP001TD.otf' }
+    ];
+    await Promise.all(fontDefs.map(async (def) => {
+        try {
+            const res = await fetch(def.url);
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const dataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
+            view._fontBase64Cache[def.key] = dataUrl;
+        } catch (e) {
+            console.warn('Font caching for SVG error:', def.key, e);
+        }
+    }));
+    return view._fontBase64Cache;
+};
+
+view.buildSvgFontDefs = async function () {
+    const fonts = await view.loadFontBase64();
+    const normalSrc = fonts['HP001N'] ? `url('${fonts['HP001N']}') format('truetype')` : `url('/static/font/HP001N30.ttf') format('truetype')`;
+    const boldSrc = fonts['HP001B'] ? `url('${fonts['HP001B']}') format('truetype')` : `url('/static/font/HP001B30.ttf') format('truetype')`;
+    const tdSrc = fonts['HP001TD'] ? `url('${fonts['HP001TD']}') format('opentype')` : `url('/static/font/HP001TD.otf') format('opentype')`;
+
+    return `<defs>
+<style type="text/css"><![CDATA[
+@font-face {
+    font-family: 'HP001';
+    font-weight: normal;
+    font-style: normal;
+    src: ${normalSrc};
+}
+@font-face {
+    font-family: 'HP001';
+    font-weight: bold;
+    font-style: normal;
+    src: ${boldSrc};
+}
+@font-face {
+    font-family: 'HP001TD';
+    font-weight: normal;
+    font-style: normal;
+    src: ${tdSrc};
+}
+]]></style>
+</defs>`;
+};
+
+view._blackboardDataUrl = null;
+view.getBlackboardDataUrl = async function () {
+    if (view._blackboardDataUrl) return view._blackboardDataUrl;
+    try {
+        const resp = await fetch('/static/img/blackboard.png');
+        const blob = await resp.blob();
+        view._blackboardDataUrl = await new Promise((res) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result);
+            reader.readAsDataURL(blob);
+        });
+        return view._blackboardDataUrl;
+    } catch (e) {
+        return '/static/img/blackboard.png';
+    }
+};
+
+/* ==========================================================================
+   BLACKBOARD EXPORT (PNG, PDF, SVG)
+   ========================================================================== */
+
+view.renderBlackboardToCanvas = async function (bgImg, boardEl, bIdx, customScale, totalBoards) {
+    let S = customScale || view.getExportScale();
+    const isMobile = view.isMobileDevice();
+    const maxCanvasDim = isMobile ? 8192 : 16384;
+    const maxCanvasArea = isMobile ? 25000000 : 100000000;
+    const widthBase = 842;
+    const heightBase = 595;
+    if (widthBase * S > maxCanvasDim || heightBase * S > maxCanvasDim || (widthBase * S * heightBase * S) > maxCanvasArea) {
+        const scaleDim = maxCanvasDim / Math.max(widthBase, heightBase);
+        const scaleArea = Math.sqrt(maxCanvasArea / (widthBase * heightBase));
+        S = Math.max(1, Math.min(S, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
+    }
+
+    const widthPx = Math.round(widthBase * S);
+    const heightPx = Math.round(heightBase * S);
+    const baselineY = 408.05 * S;
+    const startX = 96.092 * S;
 
     const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
     const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
     const textColor = $('#font-color-input').val() || '#ffd700';
 
-    // Ultra HD resolution export: 4x of A4 Landscape (3368 x 2380)
-    const S = 4;
-    const widthPx = 842 * S;
-    const heightPx = 595 * S;
-    const baselineY = 408.05 * S; // 816.1px (Line 2 baseline)
-    const startX = 96.092 * S;    // 192.18px
-
-    // Ensure custom fonts are ready before drawing
-    if (document.fonts) {
-        try {
-            await Promise.all([
-                document.fonts.load('16px HP001'),
-                document.fonts.load('16px HP001TD'),
-                document.fonts.ready
-            ]);
-        } catch (_) {}
-    }
-
     const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.result-text, #result').hasClass('small');
     const domFontSize = isSmall ? 144.66 : 281.5;
     const exportFontSize = domFontSize * S;
 
-    // Get raw input lines for file naming
     const rawInputLines = ($('#input').val() || '').split('\n').map(l => l.replace(/[\t]/g, "    ").trim());
 
-    const exportSingleBoard = function (bgImg, boardEl, bIdx) {
-        return new Promise((resolve) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = widthPx;
-            canvas.height = heightPx;
-            const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = widthPx;
+    canvas.height = heightPx;
+    const ctx = canvas.getContext('2d');
 
-            // 1. Draw exact blackboard background
-            ctx.drawImage(bgImg, 0, 0, widthPx, heightPx);
+    // 1. Draw exact blackboard background
+    ctx.drawImage(bgImg, 0, 0, widthPx, heightPx);
 
-            // 2. Collect words for this board
-            const $line = $(boardEl).find('p.line').first();
-            const words = [];
-            $line.children('.word').each(function () {
-                const wordEl = this;
-                const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
-                const rawWord = $(wordEl).attr('data-raw') || '';
-                const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
-                const weight = $(wordEl).attr('data-weight') || null;
-                words.push({
-                    text: wordText,
-                    raw: rawWord,
-                    offsetLeft: wordEl.offsetLeft,
-                    offsetWidth: wordEl.offsetWidth,
-                    stretch: stretch,
-                    weight: weight
+    // 2. Collect words for this board
+    const $line = $(boardEl).find('p.line').first();
+    const words = [];
+    $line.children('.word').each(function () {
+        const wordEl = this;
+        const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+        const rawWord = $(wordEl).attr('data-raw') || '';
+        const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+        const weight = $(wordEl).attr('data-weight') || null;
+        words.push({
+            text: wordText,
+            raw: rawWord,
+            offsetLeft: wordEl.offsetLeft,
+            offsetWidth: wordEl.offsetWidth,
+            stretch: stretch,
+            weight: weight
+        });
+    });
+
+    const rawLineText = rawInputLines[bIdx] || words.map(w => w.raw || w.text).join(' ');
+
+    if (words.length > 0) {
+        ctx.save();
+        if (isItalics) {
+            ctx.translate(0, baselineY);
+            ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
+            ctx.translate(0, -baselineY);
+        }
+
+        ctx.fillStyle = textColor;
+        ctx.textBaseline = 'alphabetic';
+
+        words.forEach(word => {
+            const xPos = startX + (word.offsetLeft * S);
+            ctx.fillStyle = textColor;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+            if (word.stretch && word.stretch !== 1.0) {
+                ctx.save();
+                ctx.translate(xPos, baselineY);
+                ctx.scale(word.stretch, 1.0);
+                ctx.fillText(word.text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillText(word.text, xPos, baselineY);
+            }
+        });
+
+        ctx.restore();
+    }
+
+    const $lineEl = $(boardEl).find('p.line').first();
+    const srcLineIdx = parseInt($lineEl.attr('data-source-line-idx'), 10);
+    const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : bIdx;
+    const lineDotConfig = view.getDottingConfig(validSrcIdx);
+    const hasText = words.length > 0;
+    const hasAnyText = ($('#input').val() || '').trim().length > 0;
+    if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+        let wordsToDraw = words;
+        if (wordsToDraw.length === 0) {
+            let $srcBoard = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).closest('.board.blackboard');
+            if (!$srcBoard.length) {
+                $srcBoard = $(boardEl).prevAll('.board.blackboard').filter(function () {
+                    return $(this).find('p.line .word').length > 0;
+                }).first();
+            }
+            if (!$srcBoard.length) $srcBoard = $('.board.blackboard').first();
+            $srcBoard.find('p.line').first().children('.word').each(function () {
+                const wEl = this;
+                wordsToDraw.push({
+                    text: $(wEl).find('.word-text').text() || $(wEl).text(),
+                    raw: $(wEl).attr('data-raw') || '',
+                    offsetLeft: wEl.offsetLeft,
+                    offsetWidth: wEl.offsetWidth,
+                    stretch: parseFloat($(wEl).attr('data-stretch')) || 1.0,
+                    weight: $(wEl).attr('data-weight') || null
                 });
             });
-
-            // Original line text for filename
-            const rawLineText = rawInputLines[bIdx] || words.map(w => w.raw || w.text).join(' ');
-
-            if (words.length > 0) {
-                // 3. Draw text anchored on Line 2 baseline
-                ctx.save();
-                if (isItalics) {
-                    ctx.translate(0, baselineY);
-                    ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
-                    ctx.translate(0, -baselineY);
+        }
+        let rawLine = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || rawInputLines[validSrcIdx] || wordsToDraw[0].text) : (rawInputLines[validSrcIdx] || rawInputLines[0] || 'a');
+        const charUnit = model.getFirstCharUnit(rawLine);
+        const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
+        let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+        if (!hasDotConfigs && wordsToDraw.length > 1) {
+            for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                const wInfo = wordsToDraw[wIdx];
+                const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                    hasDotConfigs = true;
+                    break;
                 }
+            }
+        }
+        const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
 
-                ctx.fillStyle = textColor;
-                ctx.textBaseline = 'alphabetic';
+        const olyUnitPx = (isSmall ? 28.932 : 56.3) * S;
+        const blockWidth = 225.2 * S;
+        const dotRadius = (isSmall ? 4 : 7) * S;
 
-                words.forEach(word => {
-                    const xPos = startX + (word.offsetLeft * S);
-                    ctx.fillStyle = textColor;
-                    const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
-                    if (word.stretch && word.stretch !== 1.0) {
-                        ctx.save();
-                        ctx.translate(xPos, baselineY);
-                        ctx.scale(word.stretch, 1.0);
-                        ctx.fillText(word.text, 0, 0);
-                        ctx.restore();
-                    } else {
-                        ctx.fillText(word.text, xPos, baselineY);
-                    }
-                });
+        const wordOffset = wordsToDraw.length > 0 ? (wordsToDraw[0].offsetLeft * S) : 0;
+        const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+        const baseWordX = startX + wordOffset;
 
-                ctx.restore();
+        if (hasDotConfigs || outlineInfo.isEnabled) {
+            ctx.save();
+            if (isItalics) {
+                ctx.translate(0, baselineY);
+                ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
+                ctx.translate(0, -baselineY);
             }
 
-            const $lineEl = $(boardEl).find('p.line').first();
-            const srcLineIdx = parseInt($lineEl.attr('data-source-line-idx'), 10);
-            const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : bIdx;
-            const lineDotConfig = view.getDottingConfig(validSrcIdx);
-            const hasText = words.length > 0;
-            const hasAnyText = ($('#input').val() || '').trim().length > 0;
-            if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
-                let wordsToDraw = words;
-                if (wordsToDraw.length === 0) {
-                    let $srcBoard = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).closest('.board.blackboard');
-                    if (!$srcBoard.length) {
-                        $srcBoard = $(boardEl).prevAll('.board.blackboard').filter(function () {
-                            return $(this).find('p.line .word').length > 0;
-                        }).first();
-                    }
-                    if (!$srcBoard.length) $srcBoard = $($boards[0]);
-                    $srcBoard.find('p.line').first().children('.word').each(function () {
-                        const wEl = this;
-                        wordsToDraw.push({
-                            text: $(wEl).find('.word-text').text() || $(wEl).text(),
-                            raw: $(wEl).attr('data-raw') || '',
-                            offsetLeft: wEl.offsetLeft,
-                            offsetWidth: wEl.offsetWidth,
-                            stretch: parseFloat($(wEl).attr('data-stretch')) || 1.0,
-                            weight: $(wEl).attr('data-weight') || null
-                        });
-                    });
-                }
-                let rawLine = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || rawInputLines[validSrcIdx] || wordsToDraw[0].text) : (rawInputLines[validSrcIdx] || rawInputLines[0] || 'a');
-                const charUnit = model.getFirstCharUnit(rawLine);
-                const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
-                let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
-                if (!hasDotConfigs && wordsToDraw.length > 1) {
-                    for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
-                        const wInfo = wordsToDraw[wIdx];
-                        const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
-                        const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
-                        if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
-                            hasDotConfigs = true;
-                            break;
-                        }
-                    }
-                }
-                const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
+            for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                if (hasText || lineDotConfig.fullDot || j === 0) {
+                    const shiftX = j * blockWidth * lineDotConfig.spaces;
 
-                const olyUnitPx = (isSmall ? 28.932 : 56.3) * S;
-                const blockWidth = 225.2 * S;
-                const dotRadius = (isSmall ? 4 : 7) * S;
+                    // A. Faint / Dotted / Curve outline copies
+                    if (outlineInfo.isEnabled) {
+                        const isCopy = (!hasText || j > 0);
+                        if (isCopy) {
+                            ctx.save();
+                            ctx.textBaseline = 'alphabetic';
+                            const isDotted = (outlineInfo.style === 'dotted');
+                            const isFaint = (outlineInfo.style === 'faint');
+                            const isCurve = (outlineInfo.style === 'curve');
 
-                const wordOffset = wordsToDraw.length > 0 ? (wordsToDraw[0].offsetLeft * S) : 0;
-                const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
-                const baseWordX = startX + wordOffset;
-
-                if (hasDotConfigs || outlineInfo.isEnabled) {
-                    ctx.save();
-                    if (isItalics) {
-                        ctx.translate(0, baselineY);
-                        ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
-                        ctx.translate(0, -baselineY);
-                    }
-
-                    for (let j = 0; j < lineDotConfig.repetitions; j++) {
-                        if (hasText || lineDotConfig.fullDot || j === 0) {
-                            const shiftX = j * blockWidth * lineDotConfig.spaces;
-
-                            // A. Faint / Dotted / Curve outline copies for students to trace
-                            if (outlineInfo.isEnabled) {
-                                const isCopy = (!hasText || j > 0);
-                                if (isCopy) {
-                                    ctx.save();
-                                    ctx.textBaseline = 'alphabetic';
-                                    const isDotted = (outlineInfo.style === 'dotted');
-                                    const isFaint = (outlineInfo.style === 'faint');
-                                    const isCurve = (outlineInfo.style === 'curve');
-
-                                    if (isDotted) {
-                                        ctx.font = `normal ${exportFontSize}px HP001TD, serif`;
-                                        ctx.fillStyle = 'rgba(255, 215, 0, 0.75)';
-                                    } else if (isFaint) {
-                                        ctx.font = `${isBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
-                                        ctx.fillStyle = 'rgba(255, 215, 0, 0.38)';
-                                    } else {
-                                        ctx.font = `${isBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
-                                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-                                        ctx.lineWidth = 1.2 * S;
-                                    }
-
-                                    const drawText = (str, x, y, strStretch) => {
-                                        if (strStretch && strStretch !== 1.0) {
-                                            ctx.save();
-                                            ctx.translate(x, y);
-                                            ctx.scale(strStretch, 1.0);
-                                            if (isCurve) {
-                                                ctx.strokeText(str, 0, 0);
-                                            } else {
-                                                ctx.fillText(str, 0, 0);
-                                            }
-                                            ctx.restore();
-                                        } else {
-                                            if (isCurve) {
-                                                ctx.strokeText(str, x, y);
-                                            } else {
-                                                ctx.fillText(str, x, y);
-                                            }
-                                        }
-                                    };
-
-                                    if (outlineInfo.scope === 'first') {
-                                        const xPos = baseWordX + shiftX;
-                                        const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
-                                        if (!isDotted) {
-                                            const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
-                                            const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
-                                            ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
-                                        }
-                                        drawText(textToDraw, xPos, baselineY, firstStretch);
-                                    } else if (outlineInfo.scope === 'all') {
-                                        wordsToDraw.forEach(w => {
-                                            const xPos = startX + (w.offsetLeft * S) + shiftX;
-                                            const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
-                                            if (!isDotted) {
-                                                const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
-                                                ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
-                                            }
-                                            drawText(textToDraw, xPos, baselineY, w.stretch || 1.0);
-                                        });
-                                    }
-                                    ctx.restore();
-                                }
+                            if (isDotted) {
+                                ctx.font = `normal ${exportFontSize}px HP001TD, serif`;
+                                ctx.fillStyle = 'rgba(255, 215, 0, 0.75)';
+                            } else if (isFaint) {
+                                ctx.font = `${isBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                ctx.fillStyle = 'rgba(255, 215, 0, 0.38)';
+                            } else {
+                                ctx.font = `${isBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+                                ctx.lineWidth = 1.2 * S;
                             }
 
-                            // B. Guide dots
-                            if (hasDotConfigs) {
-                                if (wordsToDraw && wordsToDraw.length > 0) {
-                                    wordsToDraw.forEach((wInfo, wIdx) => {
-                                        const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
-                                        const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
-                                        if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
-                                            const wBaseX = startX + (wInfo.offsetLeft * S);
-                                            const wStretch = wInfo.stretch || 1.0;
-                                            for (const dot of wDotCfg.dots) {
-                                                const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
-                                                const dotY = baselineY - (dot.y * olyUnitPx);
-                                                ctx.beginPath();
-                                                ctx.fillStyle = lineDotConfig.color;
-                                                ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
-                                                ctx.fill();
-                                                ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-                                                ctx.lineWidth = 1 * S;
-                                                ctx.stroke();
-                                            }
-                                        }
-                                    });
-                                } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
-                                    for (const dot of activeDotConfig.dots) {
-                                        const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                            const drawText = (str, x, y, strStretch) => {
+                                if (strStretch && strStretch !== 1.0) {
+                                    ctx.save();
+                                    ctx.translate(x, y);
+                                    ctx.scale(strStretch, 1.0);
+                                    if (isCurve) {
+                                        ctx.strokeText(str, 0, 0);
+                                    } else {
+                                        ctx.fillText(str, 0, 0);
+                                    }
+                                    ctx.restore();
+                                } else {
+                                    if (isCurve) {
+                                        ctx.strokeText(str, x, y);
+                                    } else {
+                                        ctx.fillText(str, x, y);
+                                    }
+                                }
+                            };
+
+                            if (outlineInfo.scope === 'first') {
+                                const xPos = baseWordX + shiftX;
+                                const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                if (!isDotted) {
+                                    const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                    const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                    ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                }
+                                drawText(textToDraw, xPos, baselineY, firstStretch);
+                            } else if (outlineInfo.scope === 'all') {
+                                wordsToDraw.forEach(w => {
+                                    const xPos = startX + (w.offsetLeft * S) + shiftX;
+                                    const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                    if (!isDotted) {
+                                        const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
+                                        ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${exportFontSize}px HP001, serif`;
+                                    }
+                                    drawText(textToDraw, xPos, baselineY, w.stretch || 1.0);
+                                });
+                            }
+                            ctx.restore();
+                        }
+                    }
+
+                    // B. Guide dots
+                    if (hasDotConfigs) {
+                        if (wordsToDraw && wordsToDraw.length > 0) {
+                            wordsToDraw.forEach((wInfo, wIdx) => {
+                                const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                    const wBaseX = startX + (wInfo.offsetLeft * S);
+                                    const wStretch = wInfo.stretch || 1.0;
+                                    for (const dot of wDotCfg.dots) {
+                                        const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                         const dotY = baselineY - (dot.y * olyUnitPx);
                                         ctx.beginPath();
                                         ctx.fillStyle = lineDotConfig.color;
@@ -4029,23 +4222,250 @@ view.exportBlackboardToPng = async function () {
                                         ctx.stroke();
                                     }
                                 }
+                            });
+                        } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                            for (const dot of activeDotConfig.dots) {
+                                const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                const dotY = baselineY - (dot.y * olyUnitPx);
+                                ctx.beginPath();
+                                ctx.fillStyle = lineDotConfig.color;
+                                ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+                                ctx.fill();
+                                ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+                                ctx.lineWidth = 1 * S;
+                                ctx.stroke();
                             }
                         }
                     }
-                    ctx.restore();
                 }
             }
+            ctx.restore();
+        }
+    }
 
-            const lineSuffix = $boards.length > 1 ? (`_dong${bIdx + 1}`) : '';
-            const fileName = view.generateFileName('blackboard' + lineSuffix, rawLineText);
+    const lineSuffix = totalBoards > 1 ? (`_dong${bIdx + 1}`) : '';
+    const fileName = view.generateFileName('blackboard' + lineSuffix, rawLineText, 'png');
 
-            view.downloadCanvasAsPng(canvas, fileName).then(resolve);
+    return { canvas, fileName, rawLineText };
+};
+
+view.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards) {
+    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
+    const textColor = $('#font-color-input').val() || '#ffd700';
+
+    const widthPx = 842;
+    const heightPx = 595;
+    const baselineY = 408.05;
+    const startX = 96.092;
+
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.result-text, #result').hasClass('small');
+    const fontSizePx = isSmall ? 144.66 : 281.5;
+
+    const rawInputLines = ($('#input').val() || '').split('\n').map(l => l.replace(/[\t]/g, "    ").trim());
+
+    const $line = $(boardEl).find('p.line').first();
+    const words = [];
+    $line.children('.word').each(function () {
+        const wordEl = this;
+        const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+        const rawWord = $(wordEl).attr('data-raw') || '';
+        const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+        const weight = $(wordEl).attr('data-weight') || null;
+        words.push({
+            text: wordText,
+            raw: rawWord,
+            offsetLeft: wordEl.offsetLeft,
+            offsetWidth: wordEl.offsetWidth,
+            stretch: stretch,
+            weight: weight
         });
-    };
+    });
+
+    const rawLineText = rawInputLines[bIdx] || words.map(w => w.raw || w.text).join(' ');
+
+    const bgDataUrl = await view.getBlackboardDataUrl();
+    const fontDefs = await view.buildSvgFontDefs();
+
+    let textSvg = '';
+    const italicMatrix = `matrix(1 0 ${(-Math.tan(17 * Math.PI / 180)).toFixed(6)} 1 0 0)`;
+    const italicTransform = isItalics ? `transform="translate(0, ${baselineY.toFixed(2)}) ${italicMatrix} translate(0, ${(-baselineY).toFixed(2)})"` : '';
+
+    if (words.length > 0) {
+        let wordsMarkup = '';
+        words.forEach(word => {
+            const xPos = startX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            const fontWeight = wordIsBold ? 'bold' : 'normal';
+            const escaped = view.escapeXml(word.text);
+            if (word.stretch && word.stretch !== 1.0) {
+                wordsMarkup += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${baselineY.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            } else {
+                wordsMarkup += `<text x="${xPos.toFixed(2)}" y="${baselineY.toFixed(2)}" font-family="HP001, serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            }
+        });
+        textSvg += `<g ${italicTransform}>${wordsMarkup}</g>\n`;
+    }
+
+    // Dotting & Outline
+    const $lineEl = $(boardEl).find('p.line').first();
+    const srcLineIdx = parseInt($lineEl.attr('data-source-line-idx'), 10);
+    const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : bIdx;
+    const lineDotConfig = view.getDottingConfig(validSrcIdx);
+    const hasText = words.length > 0;
+    const hasAnyText = ($('#input').val() || '').trim().length > 0;
+
+    let dottingSvg = '';
+    if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+        let wordsToDraw = words;
+        if (wordsToDraw.length === 0) {
+            let $srcBoard = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).closest('.board.blackboard');
+            if (!$srcBoard.length) {
+                $srcBoard = $(boardEl).prevAll('.board.blackboard').filter(function () {
+                    return $(this).find('p.line .word').length > 0;
+                }).first();
+            }
+            if (!$srcBoard.length) $srcBoard = $('.board.blackboard').first();
+            $srcBoard.find('p.line').first().children('.word').each(function () {
+                const wEl = this;
+                wordsToDraw.push({
+                    text: $(wEl).find('.word-text').text() || $(wEl).text(),
+                    raw: $(wEl).attr('data-raw') || '',
+                    offsetLeft: wEl.offsetLeft,
+                    offsetWidth: wEl.offsetWidth,
+                    stretch: parseFloat($(wEl).attr('data-stretch')) || 1.0,
+                    weight: $(wEl).attr('data-weight') || null
+                });
+            });
+        }
+        let rawLine = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || rawInputLines[validSrcIdx] || wordsToDraw[0].text) : (rawInputLines[validSrcIdx] || rawInputLines[0] || 'a');
+        const charUnit = model.getFirstCharUnit(rawLine);
+        const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
+        let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+        if (!hasDotConfigs && wordsToDraw.length > 1) {
+            for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                const wInfo = wordsToDraw[wIdx];
+                const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                    hasDotConfigs = true;
+                    break;
+                }
+            }
+        }
+        const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
+
+        const olyUnitPx = isSmall ? 28.932 : 56.3;
+        const blockWidth = 225.2;
+        const dotRadius = isSmall ? 4 : 7;
+
+        const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+        const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+        const baseWordX = startX + wordOffset;
+
+        if (hasDotConfigs || outlineInfo.isEnabled) {
+            let groupInner = '';
+            for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                if (hasText || lineDotConfig.fullDot || j === 0) {
+                    const shiftX = j * blockWidth * lineDotConfig.spaces;
+
+                    // A. Outline
+                    if (outlineInfo.isEnabled && (!hasText || j > 0)) {
+                        const isDotted = (outlineInfo.style === 'dotted');
+                        const isFaint = (outlineInfo.style === 'faint');
+                        const isCurve = (outlineInfo.style === 'curve');
+
+                        const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
+                        const fillCol = isDotted ? 'rgba(255, 215, 0, 0.75)' : (isFaint ? 'rgba(255, 215, 0, 0.38)' : 'none');
+                        const strokeAttr = isCurve ? 'stroke="rgba(255, 255, 255, 0.45)" stroke-width="1.2"' : '';
+
+                        const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
+                            const esc = view.escapeXml(str);
+                            const weightStr = isBoldWord ? 'bold' : 'normal';
+                            if (strStretch && strStretch !== 1.0) {
+                                return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                            }
+                            return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                        };
+
+                        if (outlineInfo.scope === 'first') {
+                            const xPos = baseWordX + shiftX;
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                            const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                            const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
+                            groupInner += drawSvgText(textToDraw, xPos, baselineY, firstStretch, firstWordIsBold);
+                        } else if (outlineInfo.scope === 'all') {
+                            wordsToDraw.forEach(w => {
+                                const xPos = startX + w.offsetLeft + shiftX;
+                                const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                const wordIsBold = !isDotted && (w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold));
+                                groupInner += drawSvgText(textToDraw, xPos, baselineY, w.stretch || 1.0, wordIsBold);
+                            });
+                        }
+                    }
+
+                    // B. Dots
+                    if (hasDotConfigs) {
+                        if (wordsToDraw && wordsToDraw.length > 0) {
+                            wordsToDraw.forEach((wInfo, wIdx) => {
+                                const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                    const wBaseX = startX + wInfo.offsetLeft;
+                                    const wStretch = wInfo.stretch || 1.0;
+                                    for (const dot of wDotCfg.dots) {
+                                        const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
+                                        const dotY = baselineY - (dot.y * olyUnitPx);
+                                        groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" stroke="rgba(0, 0, 0, 0.5)" stroke-width="1" />\n`;
+                                    }
+                                }
+                            });
+                        } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                            for (const dot of activeDotConfig.dots) {
+                                const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                const dotY = baselineY - (dot.y * olyUnitPx);
+                                groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" stroke="rgba(0, 0, 0, 0.5)" stroke-width="1" />\n`;
+                            }
+                        }
+                    }
+                }
+            }
+            dottingSvg = `<g ${italicTransform}>${groupInner}</g>\n`;
+        }
+    }
+
+    const svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
+${fontDefs}
+<image href="${bgDataUrl}" x="0" y="0" width="${widthPx}" height="${heightPx}" />
+${textSvg}
+${dottingSvg}
+</svg>`;
+
+    const lineSuffix = totalBoards > 1 ? (`_dong${bIdx + 1}`) : '';
+    const fileName = view.generateFileName('blackboard' + lineSuffix, rawLineText, 'svg');
+
+    return { svgString, fileName };
+};
+
+view.exportBlackboardToPng = async function (customScale) {
+    const $boards = $('.board.blackboard');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
 
     const doExportAll = async function (bgImg) {
         for (let i = 0; i < $boards.length; i++) {
-            await exportSingleBoard(bgImg, $boards[i], i);
+            const { canvas, fileName } = await view.renderBlackboardToCanvas(bgImg, $boards[i], i, customScale, $boards.length);
+            await view.downloadCanvasAsPng(canvas, fileName);
             if (i < $boards.length - 1) {
                 await new Promise(r => setTimeout(r, 400));
             }
@@ -4064,16 +4484,15 @@ view.exportBlackboardToPng = async function () {
     }
 };
 
-view.exportWhite11x14ToPng = async function () {
-    const $boards = $('.board.white_11x14, .board.white_10x14');
+view.exportBlackboardToPdf = async function (customScale) {
+    const $boards = $('.board.blackboard');
     if (!$boards.length) return;
 
-    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.board.white_11x14 .result-text, .board.white_10x14 .result-text, #result').hasClass('small');
-    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
-    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
-    const textColor = $('#font-color-input').val() || '#2b1055';
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('Thư viện jsPDF chưa tải xong. Vui lòng thử lại sau giây lát!');
+        return;
+    }
 
-    // Ensure custom fonts are ready before drawing
     if (document.fonts) {
         try {
             await Promise.all([
@@ -4084,287 +4503,339 @@ view.exportWhite11x14ToPng = async function () {
         } catch (_) {}
     }
 
-    let scale = 4; // Ultra HD resolution (4x) for crystal-clear zooming and printing
-    const ptToPx = 96 / 72; // 1.3333333333333333
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+    });
+
+    const getBgImg = () => new Promise((resolve) => {
+        if (view.blackboardImg && view.blackboardImg.complete && view.blackboardImg.naturalWidth > 0) {
+            resolve(view.blackboardImg);
+        } else {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(img);
+            img.src = '/static/img/blackboard.png';
+        }
+    });
+
+    const bgImg = await getBgImg();
+    let baseFileName = '';
+
+    for (let i = 0; i < $boards.length; i++) {
+        if (i > 0) {
+            pdf.addPage('a4', 'landscape');
+        }
+        const { canvas, rawLineText } = await view.renderBlackboardToCanvas(bgImg, $boards[i], i, customScale, $boards.length);
+        if (!baseFileName) {
+            baseFileName = view.generateFileName('blackboard', rawLineText, 'pdf');
+        }
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+    }
+
+    pdf.save(baseFileName || 'blackboard.pdf');
+};
+
+view.exportBlackboardToSvg = async function () {
+    const $boards = $('.board.blackboard');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    for (let i = 0; i < $boards.length; i++) {
+        const { svgString, fileName } = await view.renderBlackboardToSvg($boards[i], i, $boards.length);
+        await view.downloadSvg(svgString, fileName);
+        if (i < $boards.length - 1) {
+            await new Promise(r => setTimeout(r, 400));
+        }
+    }
+};
+
+/* ==========================================================================
+   WHITE 11x14 & 10x14 EXPORT (PNG, PDF, SVG)
+   ========================================================================== */
+
+view.renderWhite11x14PageToCanvas = async function (boardEl, pIdx, customScale, totalBoards) {
+    let scale = customScale || view.getExportScale();
+    const ptToPx = 96 / 72;
     const subGridPx = 14.4 * ptToPx; // 19.2px
 
-    // Dimensions: 46 cells wide (1 + 44 + 1), 60 cells tall (2 + 56 + 2)
     const widthPx = 883.2;
     const heightPx = 1152;
-    const maxCanvasDim = 8192;
-    const maxCanvasArea = 25000000;
+    const isMobile = view.isMobileDevice();
+    const maxCanvasDim = isMobile ? 8192 : 16384;
+    const maxCanvasArea = isMobile ? 25000000 : 100000000;
     if (widthPx * scale > maxCanvasDim || heightPx * scale > maxCanvasDim || (widthPx * scale * heightPx * scale) > maxCanvasArea) {
         const scaleDim = maxCanvasDim / Math.max(widthPx, heightPx);
         const scaleArea = Math.sqrt(maxCanvasArea / (widthPx * heightPx));
-        scale = Math.max(1, Math.min(4, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
+        scale = Math.max(1, Math.min(scale, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
     }
     const canvasWidth = Math.round(widthPx * scale);
     const canvasHeight = Math.round(heightPx * scale);
 
-    const gridOriginX = subGridPx; // 19.2px (1 cell buffer left)
-    const gridOriginY = subGridPx * 2; // 38.4px (2 cells buffer top)
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.board.white_11x14 .result-text, .board.white_10x14 .result-text, #result').hasClass('small');
+    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
+    const textColor = $('#font-color-input').val() || '#2b1055';
+
+    const gridOriginX = subGridPx; // 19.2px
+    const gridOriginY = subGridPx * 2; // 38.4px
 
     const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
-    const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8)); // 76.8px or 153.6px
-    const firstBaselineY = gridOriginY + 4 * subGridPx; // Line 1 baseline at y = 6 cells (115.2px) matching on-screen Major Line 1
+    const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
+    const firstBaselineY = gridOriginY + 4 * subGridPx;
 
-    const exportSinglePage = function (boardEl, pIdx) {
-        return new Promise((resolve) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = canvasWidth;
-            canvas.height = canvasHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(scale, scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
 
-            // 1. Draw Paper Background
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, widthPx, heightPx);
+    // 1. Draw Paper Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, widthPx, heightPx);
 
-            // 2. Draw Grid Lines (Crisp and opaque for printing)
-            const majorColor = 'rgba(60, 75, 115, 0.9)';
-            const minorColor = 'rgba(90, 115, 165, 0.7)';
-            // Grid line thickness settings (adjusted: 30% decrease from 2.0 / 1.0)
-            const gridLineWidthMajor = 1.4; // Major grid line thickness (was 2.0)
-            const gridLineWidthMinor = 0.7; // Minor grid line thickness (was 1.0)
+    // 2. Draw Grid Lines
+    const majorColor = 'rgba(60, 75, 115, 0.9)';
+    const minorColor = 'rgba(90, 115, 165, 0.7)';
+    const gridLineWidthMajor = 1.4;
+    const gridLineWidthMinor = 0.7;
 
-            // Horizontal grid lines
-            for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
-                const k = Math.round((y - gridOriginY) / subGridPx);
-                const isMajor = (k % 4 === 0);
-                ctx.beginPath();
-                ctx.strokeStyle = isMajor ? majorColor : minorColor;
-                ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
-                ctx.moveTo(0, y);
-                ctx.lineTo(widthPx, y);
-                ctx.stroke();
-            }
+    for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
+        const k = Math.round((y - gridOriginY) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorColor : minorColor;
+        ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
+        ctx.moveTo(0, y);
+        ctx.lineTo(widthPx, y);
+        ctx.stroke();
+    }
 
-            // Vertical grid lines (respecting slant if italics)
-            const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
-            const xMin = -heightPx * slantOffset;
-            const xMax = widthPx + heightPx * slantOffset;
-            const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
+    const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
+    const xMin = -heightPx * slantOffset;
+    const xMax = widthPx + heightPx * slantOffset;
+    const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
 
-            for (let x = startX; x <= xMax; x += subGridPx) {
-                const k = Math.round((x - gridOriginX) / subGridPx);
-                const isMajor = (k % 4 === 0);
-                ctx.beginPath();
-                ctx.strokeStyle = isMajor ? majorColor : minorColor;
-                ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x - heightPx * slantOffset, heightPx);
-                ctx.stroke();
-            }
+    for (let x = startX; x <= xMax; x += subGridPx) {
+        const k = Math.round((x - gridOriginX) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorColor : minorColor;
+        ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x - heightPx * slantOffset, heightPx);
+        ctx.stroke();
+    }
 
-            // 3. Draw Text
-            ctx.save();
-            if (isItalics) {
-                ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
-            }
+    // 3. Draw Text
+    ctx.save();
+    if (isItalics) {
+        ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
+    }
 
-            ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
-            ctx.fillStyle = textColor;
-            ctx.textBaseline = 'alphabetic';
+    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
+    ctx.fillStyle = textColor;
+    ctx.textBaseline = 'alphabetic';
 
-            const linesPerPage = isSmall ? 14 : 7;
-            const dotConfig = view.getDottingConfig();
-            const $lines = $(boardEl).find('p.line');
-            const pageTexts = [];
+    const linesPerPage = isSmall ? 14 : 7;
+    const $lines = $(boardEl).find('p.line');
+    const pageTexts = [];
 
-            $lines.each(function (lIdx) {
-                const globalLineIdx = (pIdx * linesPerPage) + lIdx;
-                const yPos = firstBaselineY + (lIdx * lineHeightPx);
-                const $line = $(this);
-                const words = [];
-                $line.children('.word').each(function () {
-                    const wordEl = this;
-                    const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
-                    const rawWord = $(wordEl).attr('data-raw') || '';
-                    const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
-                    const weight = $(wordEl).attr('data-weight') || null;
-                    words.push({
-                        text: wordText,
-                        raw: rawWord,
-                        offsetLeft: wordEl.offsetLeft,
-                        offsetWidth: wordEl.offsetWidth,
-                        stretch: stretch,
-                        weight: weight
-                    });
-                });
+    $lines.each(function (lIdx) {
+        const globalLineIdx = (pIdx * linesPerPage) + lIdx;
+        const yPos = firstBaselineY + (lIdx * lineHeightPx);
+        const $line = $(this);
+        const words = [];
+        $line.children('.word').each(function () {
+            const wordEl = this;
+            const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+            const rawWord = $(wordEl).attr('data-raw') || '';
+            const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
+            words.push({
+                text: wordText,
+                raw: rawWord,
+                offsetLeft: wordEl.offsetLeft,
+                offsetWidth: wordEl.offsetWidth,
+                stretch: stretch,
+                weight: weight
+            });
+        });
 
-                if (words.length > 0) {
-                    pageTexts.push(words.map(w => w.raw || w.text).join(' '));
-                }
+        if (words.length > 0) {
+            pageTexts.push(words.map(w => w.raw || w.text).join(' '));
+        }
 
+        ctx.fillStyle = textColor;
+        words.forEach(word => {
+            const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
+            if (word.stretch && word.stretch !== 1.0) {
+                ctx.save();
+                ctx.translate(xPos, yPos);
+                ctx.scale(word.stretch, 1.0);
                 ctx.fillStyle = textColor;
-                words.forEach(word => {
-                    const xPos = gridOriginX + word.offsetLeft;
-                    const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
-                    if (word.stretch && word.stretch !== 1.0) {
-                        ctx.save();
-                        ctx.translate(xPos, yPos);
-                        ctx.scale(word.stretch, 1.0);
-                        ctx.fillStyle = textColor;
-                        ctx.fillText(word.text, 0, 0);
-                        ctx.restore();
-                    } else {
-                        ctx.fillStyle = textColor;
-                        ctx.fillText(word.text, xPos, yPos);
+                ctx.fillText(word.text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = textColor;
+                ctx.fillText(word.text, xPos, yPos);
+            }
+        });
+
+        const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
+        const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : globalLineIdx;
+        const hasText = words.length > 0;
+        const hasAnyText = ($('#input').val() || '').trim().length > 0;
+        const lineDotConfig = view.getDottingConfig(validSrcIdx);
+        if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+            let wordsToDraw = words;
+            if (wordsToDraw.length === 0) {
+                let $lineWithWords = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $line.prevAll('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $('.board.white_11x14, .board.white_10x14').find('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if ($lineWithWords.length) {
+                    $lineWithWords.children('.word').each(function () {
+                        wordsToDraw.push({
+                            text: $(this).find('.word-text').text() || $(this).text(),
+                            raw: $(this).attr('data-raw') || '',
+                            offsetLeft: this.offsetLeft,
+                            stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
+                            weight: $(this).attr('data-weight') || null
+                        });
+                    });
+                }
+            }
+            let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
+            if (!rawLineText) {
+                const rawLines = ($('#input').val() || '').split('\n').map(l => l.trim());
+                const lineFromInput = rawLines[validSrcIdx] || rawLines[0] || 'a';
+                rawLineText = lineFromInput.split(/\s+/)[0] || 'a';
+            }
+            const charUnit = model.getFirstCharUnit(rawLineText);
+            const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
+            let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+            if (!hasDotConfigs && wordsToDraw.length > 1) {
+                for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                    const wInfo = wordsToDraw[wIdx];
+                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                    const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                        hasDotConfigs = true;
+                        break;
                     }
-                });
+                }
+            }
+            const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
 
-                const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
-                const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : globalLineIdx;
-                const hasText = words.length > 0;
-                const hasAnyText = ($('#input').val() || '').trim().length > 0;
-                const lineDotConfig = view.getDottingConfig(validSrcIdx);
-                if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
-                    let wordsToDraw = words;
-                    if (wordsToDraw.length === 0) {
-                        let $lineWithWords = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
-                        if (!$lineWithWords.length) {
-                            $lineWithWords = $line.prevAll('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
-                        }
-                        if (!$lineWithWords.length) {
-                            $lineWithWords = $('.board.white_11x14, .board.white_10x14').find('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
-                        }
-                        if ($lineWithWords.length) {
-                            $lineWithWords.children('.word').each(function () {
-                                wordsToDraw.push({
-                                    text: $(this).find('.word-text').text() || $(this).text(),
-                                    raw: $(this).attr('data-raw') || '',
-                                    offsetLeft: this.offsetLeft,
-                                    stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
-                                    weight: $(this).attr('data-weight') || null
-                                });
-                            });
-                        }
-                    }
-                    let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
-                    if (!rawLineText) {
-                        const rawLines = ($('#input').val() || '').split('\n').map(l => l.trim());
-                        const lineFromInput = rawLines[validSrcIdx] || rawLines[0] || 'a';
-                        rawLineText = lineFromInput.split(/\s+/)[0] || 'a';
-                    }
-                    const charUnit = model.getFirstCharUnit(rawLineText);
-                    const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
-                    let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
-                    if (!hasDotConfigs && wordsToDraw.length > 1) {
-                        for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
-                            const wInfo = wordsToDraw[wIdx];
-                            const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
-                            const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
-                            if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
-                                hasDotConfigs = true;
-                                break;
-                            }
-                        }
-                    }
-                    const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
+            const olyUnitPx = isSmall ? 9.6 : 19.2;
+            const blockWidth = 76.8;
+            const dotRadius = isSmall ? 1.25 : 1.75;
 
-                    const olyUnitPx = isSmall ? 9.6 : 19.2;
-                    const blockWidth = 76.8;
-                    // Guide dot radius in export (decreased by 50% from 2.5 / 3.5)
-                    const dotRadius = isSmall ? 1.25 : 1.75;
+            const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+            const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+            const baseWordX = gridOriginX + wordOffset;
 
-                    const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
-                    const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
-                    const baseWordX = gridOriginX + wordOffset;
+            if (hasDotConfigs || outlineInfo.isEnabled) {
+                for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                    if (hasText || lineDotConfig.fullDot || j === 0) {
+                        const shiftX = j * blockWidth * lineDotConfig.spaces;
 
-                    if (hasDotConfigs || outlineInfo.isEnabled) {
-                        for (let j = 0; j < lineDotConfig.repetitions; j++) {
-                            if (hasText || lineDotConfig.fullDot || j === 0) {
-                                const shiftX = j * blockWidth * lineDotConfig.spaces;
+                        // A. Outline copies
+                        if (outlineInfo.isEnabled) {
+                            const isCopy = (!hasText || j > 0);
+                            if (isCopy) {
+                                ctx.save();
+                                ctx.textBaseline = 'alphabetic';
+                                const isDotted = (outlineInfo.style === 'dotted');
+                                const isFaint = (outlineInfo.style === 'faint');
+                                const isCurve = (outlineInfo.style === 'curve');
 
-                                // A. Outline copies (faint, dotted, curve)
-                                if (outlineInfo.isEnabled) {
-                                    const isCopy = (!hasText || j > 0);
-                                    if (isCopy) {
-                                        ctx.save();
-                                        ctx.textBaseline = 'alphabetic';
-                                        const isDotted = (outlineInfo.style === 'dotted');
-                                        const isFaint = (outlineInfo.style === 'faint');
-                                        const isCurve = (outlineInfo.style === 'curve');
-
-                                        if (isDotted) {
-                                            ctx.font = `normal ${fontSizePx}px HP001TD, serif`;
-                                            ctx.fillStyle = 'rgba(43, 16, 85, 0.65)';
-                                        } else if (isFaint) {
-                                            ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                            ctx.fillStyle = 'rgba(43, 16, 85, 0.32)';
-                                        } else {
-                                            ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                            ctx.strokeStyle = 'rgba(43, 16, 85, 0.42)';
-                                            ctx.lineWidth = isSmall ? 0.8 : 1.0;
-                                        }
-
-                                        const drawText = (str, x, y, strStretch) => {
-                                            if (strStretch && strStretch !== 1.0) {
-                                                ctx.save();
-                                                ctx.translate(x, y);
-                                                ctx.scale(strStretch, 1.0);
-                                                if (isCurve) {
-                                                    ctx.strokeText(str, 0, 0);
-                                                } else {
-                                                    ctx.fillText(str, 0, 0);
-                                                }
-                                                ctx.restore();
-                                            } else {
-                                                if (isCurve) {
-                                                    ctx.strokeText(str, x, y);
-                                                } else {
-                                                    ctx.fillText(str, x, y);
-                                                }
-                                            }
-                                        };
-
-                                        if (outlineInfo.scope === 'first') {
-                                            const xPos = baseWordX + shiftX;
-                                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
-                                            if (!isDotted) {
-                                                const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
-                                                const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
-                                                ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                            }
-                                            drawText(textToDraw, xPos, yPos, firstStretch);
-                                        } else if (outlineInfo.scope === 'all') {
-                                            wordsToDraw.forEach(w => {
-                                                const xPos = gridOriginX + w.offsetLeft + shiftX;
-                                                const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
-                                                if (!isDotted) {
-                                                    const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
-                                                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                                }
-                                                drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
-                                            });
-                                        }
-                                        ctx.restore();
-                                    }
+                                if (isDotted) {
+                                    ctx.font = `normal ${fontSizePx}px HP001TD, serif`;
+                                    ctx.fillStyle = 'rgba(43, 16, 85, 0.65)';
+                                } else if (isFaint) {
+                                    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    ctx.fillStyle = 'rgba(43, 16, 85, 0.32)';
+                                } else {
+                                    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    ctx.strokeStyle = 'rgba(43, 16, 85, 0.42)';
+                                    ctx.lineWidth = isSmall ? 0.8 : 1.0;
                                 }
 
-                                // B. Guide dots
-                                if (hasDotConfigs) {
-                                    if (wordsToDraw && wordsToDraw.length > 0) {
-                                        wordsToDraw.forEach((wInfo, wIdx) => {
-                                            const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
-                                            const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
-                                            if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
-                                                const wBaseX = gridOriginX + wInfo.offsetLeft;
-                                                const wStretch = wInfo.stretch || 1.0;
-                                                for (const dot of wDotCfg.dots) {
-                                                    const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
-                                                    const dotY = yPos - (dot.y * olyUnitPx);
-                                                    ctx.beginPath();
-                                                    ctx.fillStyle = lineDotConfig.color;
-                                                    ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
-                                                    ctx.fill();
-                                                }
-                                            }
-                                        });
-                                    } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
-                                        for (const dot of activeDotConfig.dots) {
-                                            const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                const drawText = (str, x, y, strStretch) => {
+                                    if (strStretch && strStretch !== 1.0) {
+                                        ctx.save();
+                                        ctx.translate(x, y);
+                                        ctx.scale(strStretch, 1.0);
+                                        if (isCurve) {
+                                            ctx.strokeText(str, 0, 0);
+                                        } else {
+                                            ctx.fillText(str, 0, 0);
+                                        }
+                                        ctx.restore();
+                                    } else {
+                                        if (isCurve) {
+                                            ctx.strokeText(str, x, y);
+                                        } else {
+                                            ctx.fillText(str, x, y);
+                                        }
+                                    }
+                                };
+
+                                if (outlineInfo.scope === 'first') {
+                                    const xPos = baseWordX + shiftX;
+                                    const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                    if (!isDotted) {
+                                        const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                        const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                        ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    }
+                                    drawText(textToDraw, xPos, yPos, firstStretch);
+                                } else if (outlineInfo.scope === 'all') {
+                                    wordsToDraw.forEach(w => {
+                                        const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                        const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                        if (!isDotted) {
+                                            const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
+                                            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                        }
+                                        drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
+                                    });
+                                }
+                                ctx.restore();
+                            }
+                        }
+
+                        // B. Guide dots
+                        if (hasDotConfigs) {
+                            if (wordsToDraw && wordsToDraw.length > 0) {
+                                wordsToDraw.forEach((wInfo, wIdx) => {
+                                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                    const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                        const wBaseX = gridOriginX + wInfo.offsetLeft;
+                                        const wStretch = wInfo.stretch || 1.0;
+                                        for (const dot of wDotCfg.dots) {
+                                            const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                             const dotY = yPos - (dot.y * olyUnitPx);
                                             ctx.beginPath();
                                             ctx.fillStyle = lineDotConfig.color;
@@ -4372,25 +4843,288 @@ view.exportWhite11x14ToPng = async function () {
                                             ctx.fill();
                                         }
                                     }
+                                });
+                            } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                                for (const dot of activeDotConfig.dots) {
+                                    const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                    const dotY = yPos - (dot.y * olyUnitPx);
+                                    ctx.beginPath();
+                                    ctx.fillStyle = lineDotConfig.color;
+                                    ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+                                    ctx.fill();
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    });
+
+    ctx.restore();
+
+    const firstText = pageTexts[0] || 'chu_dep';
+    const pageSuffix = totalBoards > 1 ? `_p${pIdx + 1}` : '';
+    const fileName = view.generateFileName('white_11x14' + pageSuffix, firstText, 'png');
+
+    return { canvas, fileName, firstText };
+};
+
+view.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoards) {
+    const ptToPx = 96 / 72;
+    const subGridPx = 14.4 * ptToPx; // 19.2px
+
+    const widthPx = 883.2;
+    const heightPx = 1152;
+
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.board.white_11x14 .result-text, .board.white_10x14 .result-text, #result').hasClass('small');
+    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
+    const textColor = $('#font-color-input').val() || '#2b1055';
+
+    const gridOriginX = subGridPx; // 19.2px
+    const gridOriginY = subGridPx * 2; // 38.4px
+
+    const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
+    const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
+    const firstBaselineY = gridOriginY + 4 * subGridPx;
+
+    const fontDefs = await view.buildSvgFontDefs();
+
+    // 1. Grid Lines
+    const majorColor = 'rgba(60, 75, 115, 0.9)';
+    const minorColor = 'rgba(90, 115, 165, 0.7)';
+    const gridLineWidthMajor = 1.4;
+    const gridLineWidthMinor = 0.7;
+
+    let linesSvg = '';
+    for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
+        const k = Math.round((y - gridOriginY) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+    }
+
+    const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
+    const xMax = widthPx + heightPx * slantOffset;
+    const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
+
+    for (let x = startX; x <= xMax; x += subGridPx) {
+        const k = Math.round((x - gridOriginX) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+    }
+
+    // 2. Text & Dots
+    const linesPerPage = isSmall ? 14 : 7;
+    const $lines = $(boardEl).find('p.line');
+    const pageTexts = [];
+
+    let textSvg = '';
+    let dottingSvg = '';
+
+    $lines.each(function (lIdx) {
+        const globalLineIdx = (pIdx * linesPerPage) + lIdx;
+        const yPos = firstBaselineY + (lIdx * lineHeightPx);
+        const $line = $(this);
+        const words = [];
+        $line.children('.word').each(function () {
+            const wordEl = this;
+            const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+            const rawWord = $(wordEl).attr('data-raw') || '';
+            const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
+            words.push({
+                text: wordText,
+                raw: rawWord,
+                offsetLeft: wordEl.offsetLeft,
+                offsetWidth: wordEl.offsetWidth,
+                stretch: stretch,
+                weight: weight
             });
-
-            ctx.restore();
-
-            const firstText = pageTexts[0] || 'chu_dep';
-            const pageSuffix = $boards.length > 1 ? `_p${pIdx + 1}` : '';
-            const fileName = view.generateFileName('white_11x14' + pageSuffix, firstText);
-
-            view.downloadCanvasAsPng(canvas, fileName).then(resolve);
         });
-    };
+
+        if (words.length > 0) {
+            pageTexts.push(words.map(w => w.raw || w.text).join(' '));
+        }
+
+        words.forEach(word => {
+            const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            const fontWeight = wordIsBold ? 'bold' : 'normal';
+            const escaped = view.escapeXml(word.text);
+            if (word.stretch && word.stretch !== 1.0) {
+                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            } else {
+                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            }
+        });
+
+        const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
+        const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : globalLineIdx;
+        const hasText = words.length > 0;
+        const hasAnyText = ($('#input').val() || '').trim().length > 0;
+        const lineDotConfig = view.getDottingConfig(validSrcIdx);
+        if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+            let wordsToDraw = words;
+            if (wordsToDraw.length === 0) {
+                let $lineWithWords = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $line.prevAll('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $('.board.white_11x14, .board.white_10x14').find('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if ($lineWithWords.length) {
+                    $lineWithWords.children('.word').each(function () {
+                        wordsToDraw.push({
+                            text: $(this).find('.word-text').text() || $(this).text(),
+                            raw: $(this).attr('data-raw') || '',
+                            offsetLeft: this.offsetLeft,
+                            stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
+                            weight: $(this).attr('data-weight') || null
+                        });
+                    });
+                }
+            }
+            let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
+            if (!rawLineText) {
+                const rawLines = ($('#input').val() || '').split('\n').map(l => l.trim());
+                const lineFromInput = rawLines[validSrcIdx] || rawLines[0] || 'a';
+                rawLineText = lineFromInput.split(/\s+/)[0] || 'a';
+            }
+            const charUnit = model.getFirstCharUnit(rawLineText);
+            const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
+            let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+            if (!hasDotConfigs && wordsToDraw.length > 1) {
+                for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                    const wInfo = wordsToDraw[wIdx];
+                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                    const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                        hasDotConfigs = true;
+                        break;
+                    }
+                }
+            }
+            const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
+
+            const olyUnitPx = isSmall ? 9.6 : 19.2;
+            const blockWidth = 76.8;
+            const dotRadius = isSmall ? 1.25 : 1.75;
+
+            const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+            const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+            const baseWordX = gridOriginX + wordOffset;
+
+            if (hasDotConfigs || outlineInfo.isEnabled) {
+                for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                    if (hasText || lineDotConfig.fullDot || j === 0) {
+                        const shiftX = j * blockWidth * lineDotConfig.spaces;
+
+                        // A. Outline
+                        if (outlineInfo.isEnabled && (!hasText || j > 0)) {
+                            const isDotted = (outlineInfo.style === 'dotted');
+                            const isFaint = (outlineInfo.style === 'faint');
+                            const isCurve = (outlineInfo.style === 'curve');
+
+                            const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
+                            const fillCol = isDotted ? 'rgba(43, 16, 85, 0.65)' : (isFaint ? 'rgba(43, 16, 85, 0.32)' : 'none');
+                            const strokeAttr = isCurve ? `stroke="rgba(43, 16, 85, 0.42)" stroke-width="${isSmall ? 0.8 : 1.0}"` : '';
+
+                            const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
+                                const esc = view.escapeXml(str);
+                                const weightStr = isBoldWord ? 'bold' : 'normal';
+                                if (strStretch && strStretch !== 1.0) {
+                                    return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                                }
+                                return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                            };
+
+                            if (outlineInfo.scope === 'first') {
+                                const xPos = baseWordX + shiftX;
+                                const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
+                                dottingSvg += drawSvgText(textToDraw, xPos, yPos, firstStretch, firstWordIsBold);
+                            } else if (outlineInfo.scope === 'all') {
+                                wordsToDraw.forEach(w => {
+                                    const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                    const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                    const wordIsBold = !isDotted && (w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold));
+                                    dottingSvg += drawSvgText(textToDraw, xPos, yPos, w.stretch || 1.0, wordIsBold);
+                                });
+                            }
+                        }
+
+                        // B. Dots
+                        if (hasDotConfigs) {
+                            if (wordsToDraw && wordsToDraw.length > 0) {
+                                wordsToDraw.forEach((wInfo, wIdx) => {
+                                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                    const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                        const wBaseX = gridOriginX + wInfo.offsetLeft;
+                                        const wStretch = wInfo.stretch || 1.0;
+                                        for (const dot of wDotCfg.dots) {
+                                            const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
+                                            const dotY = yPos - (dot.y * olyUnitPx);
+                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                        }
+                                    }
+                                });
+                            } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                                for (const dot of activeDotConfig.dots) {
+                                    const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                    const dotY = yPos - (dot.y * olyUnitPx);
+                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    const italicMatrix = `matrix(1 0 ${(-Math.tan(17 * Math.PI / 180)).toFixed(6)} 1 0 0)`;
+    const textGroup = isItalics ? `<g transform="${italicMatrix}">\n${textSvg}\n${dottingSvg}\n</g>` : `${textSvg}\n${dottingSvg}`;
+
+    const svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
+${fontDefs}
+<rect width="${widthPx}" height="${heightPx}" fill="#ffffff" />
+<g id="grid-lines">
+${linesSvg}
+</g>
+<g id="text-layer">
+${textGroup}
+</g>
+</svg>`;
+
+    const firstText = pageTexts[0] || 'chu_dep';
+    const pageSuffix = totalBoards > 1 ? `_p${pIdx + 1}` : '';
+    const fileName = view.generateFileName('white_11x14' + pageSuffix, firstText, 'svg');
+
+    return { svgString, fileName };
+};
+
+view.exportWhite11x14ToPng = async function (customScale) {
+    const $boards = $('.board.white_11x14, .board.white_10x14');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
 
     for (let i = 0; i < $boards.length; i++) {
-        await exportSinglePage($boards[i], i);
+        const { canvas, fileName } = await view.renderWhite11x14PageToCanvas($boards[i], i, customScale, $boards.length);
+        await view.downloadCanvasAsPng(canvas, fileName);
         if (i < $boards.length - 1) {
             await new Promise(r => setTimeout(r, 400));
         }
@@ -4398,20 +5132,85 @@ view.exportWhite11x14ToPng = async function () {
 };
 view.exportWhite10x14ToPng = view.exportWhite11x14ToPng;
 
-view.exportToPng = async function () {
-    const layout = $('#board-color-select').val();
-    const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
-    const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+view.exportWhite11x14ToPdf = async function (customScale) {
+    const $boards = $('.board.white_11x14, .board.white_10x14');
+    if (!$boards.length) return;
 
-    if (isBlackboard) {
-        await view.exportBlackboardToPng();
-        return;
-    }
-    if (isWhite11x14) {
-        await view.exportWhite11x14ToPng();
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('Thư viện jsPDF chưa tải xong. Vui lòng thử lại sau giây lát!');
         return;
     }
 
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+    });
+
+    const targetW = 200;
+    const targetH = targetW / (883.2 / 1152);
+    const offsetX = (210 - targetW) / 2;
+    const offsetY = (297 - targetH) / 2;
+
+    let baseFileName = '';
+
+    for (let i = 0; i < $boards.length; i++) {
+        if (i > 0) {
+            pdf.addPage('a4', 'portrait');
+        }
+        const { canvas, firstText } = await view.renderWhite11x14PageToCanvas($boards[i], i, customScale, $boards.length);
+        if (!baseFileName) {
+            baseFileName = view.generateFileName('white_11x14', firstText, 'pdf');
+        }
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', offsetX, offsetY, targetW, targetH, undefined, 'FAST');
+    }
+
+    pdf.save(baseFileName || 'white_11x14.pdf');
+};
+view.exportWhite10x14ToPdf = view.exportWhite11x14ToPdf;
+
+view.exportWhite11x14ToSvg = async function () {
+    const $boards = $('.board.white_11x14, .board.white_10x14');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    for (let i = 0; i < $boards.length; i++) {
+        const { svgString, fileName } = await view.renderWhite11x14PageToSvg($boards[i], i, $boards.length);
+        await view.downloadSvg(svgString, fileName);
+        if (i < $boards.length - 1) {
+            await new Promise(r => setTimeout(r, 400));
+        }
+    }
+};
+view.exportWhite10x14ToSvg = view.exportWhite11x14ToSvg;
+
+/* ==========================================================================
+   STANDARD INFINITE BOARD EXPORT (PNG, PDF, SVG)
+   ========================================================================== */
+
+view.renderStandardBoardToCanvas = async function (customScale) {
     const $result = $('#result');
     const isSmall = $result.hasClass('small');
     const isBold = $result.hasClass('bold');
@@ -4446,30 +5245,17 @@ view.exportToPng = async function () {
     const hasAnyText = ($('#input').val() || '').trim().length > 0;
     const dotConfig = hasAnyText ? view.getDottingConfig() : null;
     if (lines.length === 0 || !hasAnyText) {
-        alert("Chưa có nội dung để xuất ảnh!");
-        return;
+        throw new Error("Chưa có nội dung để xuất ảnh!");
     }
 
-    // Ensure custom fonts are ready before drawing
-    if (document.fonts) {
-        try {
-            await Promise.all([
-                document.fonts.load('16px HP001'),
-                document.fonts.load('16px HP001TD'),
-                document.fonts.ready
-            ]);
-        } catch (_) {}
-    }
-
-    let scale = 4; // Ultra HD resolution (4x) for crystal-clear zooming and printing
-    const ptToPx = 96 / 72; // 1.3333333333333333
-    const subGridPx = 14.4 * ptToPx; // 19.2px
-    const bigGridPx = subGridPx * 4; // 76.8px
+    let scale = customScale || view.getExportScale();
+    const ptToPx = 96 / 72;
+    const subGridPx = 14.4 * ptToPx;
+    const bigGridPx = subGridPx * 4;
 
     const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
-    const lineHeightPx = (isSmall ? 4 : 8) * subGridPx; // 76.8px or 153.6px
+    const lineHeightPx = (isSmall ? 4 : 8) * subGridPx;
 
-    // 1. Accurately measure the widest line
     const measureCanvas = document.createElement('canvas');
     const measureCtx = measureCanvas.getContext('2d');
     measureCtx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
@@ -4496,30 +5282,27 @@ view.exportToPng = async function () {
         }
     }
 
-    // Grid origins matching CSS background-position: var(--grid-unit) calc(var(--grid-unit) * 2.5)
-    const gridOriginX = subGridPx; // 19.2px
-    const gridOriginY = subGridPx * 2.5; // 48px (shifted half cell lower)
+    const gridOriginX = subGridPx;
+    const gridOriginY = subGridPx * 2.5;
 
-    // Dynamic width so long text is NEVER cut off
     const minViewportWidth = Math.max(window.innerWidth || 1200, 1000);
     const slantExtra = isItalics ? 140 : 0;
     const neededWidth = Math.max(minViewportWidth, maxLineRight + bigGridPx * 2 + slantExtra);
     const widthPx = Math.ceil(neededWidth / bigGridPx) * bigGridPx;
 
-    // First line baseline rests on major line 1 (124.8px) matching CSS on-screen display
     const firstBaselineY = gridOriginY + 4 * subGridPx;
     const totalLinesCount = Math.max(lines.length, (dotConfig && dotConfig.enabled) ? dotConfig.linesCount : 0);
     const lastBaselineY = firstBaselineY + Math.max(0, totalLinesCount - 1) * lineHeightPx;
     const neededHeight = lastBaselineY + bigGridPx * 2;
     const heightPx = Math.ceil(neededHeight / bigGridPx) * bigGridPx;
 
-    // Item 3.1: Clamp export scale dynamically if dimensions exceed browser canvas memory limits
-    const maxCanvasDim = 8192;
-    const maxCanvasArea = 25000000;
+    const isMobile = view.isMobileDevice();
+    const maxCanvasDim = isMobile ? 8192 : 16384;
+    const maxCanvasArea = isMobile ? 25000000 : 100000000;
     if (widthPx * scale > maxCanvasDim || heightPx * scale > maxCanvasDim || (widthPx * scale * heightPx * scale) > maxCanvasArea) {
         const scaleDim = maxCanvasDim / Math.max(widthPx, heightPx);
         const scaleArea = Math.sqrt(maxCanvasArea / (widthPx * heightPx));
-        scale = Math.max(1, Math.min(4, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
+        scale = Math.max(1, Math.min(scale, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
     }
 
     const canvas = document.createElement('canvas');
@@ -4528,19 +5311,14 @@ view.exportToPng = async function () {
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
 
-    // 2. Draw Background
-    if (isWhiteBoard) {
-        ctx.fillStyle = '#ffffff';
-    } else {
-        ctx.fillStyle = '#496e53'; // Chalkboard green
-    }
+    // Background
+    ctx.fillStyle = isWhiteBoard ? '#ffffff' : '#496e53';
     ctx.fillRect(0, 0, widthPx, heightPx);
 
-    // 3. Draw Grid Lines synchronized with CSS gridOrigin (Crisp and opaque for printing)
+    // Grid lines
     const majorColor = isWhiteBoard ? 'rgba(60, 75, 115, 0.9)' : 'rgba(220, 220, 220, 0.7)';
     const minorColor = isWhiteBoard ? 'rgba(90, 115, 165, 0.7)' : 'rgba(200, 200, 200, 0.32)';
 
-    // Horizontal grid lines
     const startY = gridOriginY % subGridPx;
     for (let y = startY; y <= heightPx; y += subGridPx) {
         const k = Math.round((y - gridOriginY) / subGridPx);
@@ -4553,7 +5331,6 @@ view.exportToPng = async function () {
         ctx.stroke();
     }
 
-    // Vertical grid lines (respecting slant if italics)
     const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
     const xMin = -heightPx * slantOffset;
     const xMax = widthPx + heightPx * slantOffset;
@@ -4570,7 +5347,7 @@ view.exportToPng = async function () {
         ctx.stroke();
     }
 
-    // 4. Draw Text
+    // Text
     ctx.save();
     if (isItalics) {
         ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
@@ -4601,7 +5378,7 @@ view.exportToPng = async function () {
         });
     });
 
-    // Draw dots
+    // Dotting
     if (dotConfig && dotConfig.enabled) {
         const olyUnitPx = isSmall ? 9.6 : 19.2;
         const dotRadius = isSmall ? 2.5 : 3.5;
@@ -4673,73 +5450,70 @@ view.exportToPng = async function () {
                 if (hasText || lineDotConfig.fullDot || j === 0) {
                     const shiftX = j * bigGridPx * lineDotConfig.spaces;
 
-                    // A. Faint / Dotted / Curve outline copies
-                    if (outlineInfo.isEnabled) {
-                        const isCopy = (!hasText || j > 0);
-                        if (isCopy) {
-                            ctx.save();
-                            ctx.textBaseline = 'alphabetic';
-                            const isDotted = (outlineInfo.style === 'dotted');
-                            const isFaint = (outlineInfo.style === 'faint');
-                            const isCurve = (outlineInfo.style === 'curve');
+                    // A. Outline
+                    if (outlineInfo.isEnabled && (!hasText || j > 0)) {
+                        ctx.save();
+                        ctx.textBaseline = 'alphabetic';
+                        const isDotted = (outlineInfo.style === 'dotted');
+                        const isFaint = (outlineInfo.style === 'faint');
+                        const isCurve = (outlineInfo.style === 'curve');
 
-                            if (isDotted) {
-                                ctx.font = `normal ${fontSizePx}px HP001TD, serif`;
-                                ctx.fillStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.65)' : 'rgba(255, 255, 255, 0.75)';
-                            } else if (isFaint) {
-                                ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                ctx.fillStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.32)' : 'rgba(255, 255, 255, 0.38)';
-                            } else {
-                                ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                ctx.strokeStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.42)' : 'rgba(255, 255, 255, 0.45)';
-                                ctx.lineWidth = isSmall ? 0.8 : 1.0;
-                            }
-
-                            const drawText = (str, x, y, strStretch) => {
-                                if (strStretch && strStretch !== 1.0) {
-                                    ctx.save();
-                                    ctx.translate(x, y);
-                                    ctx.scale(strStretch, 1.0);
-                                    if (isCurve) {
-                                        ctx.strokeText(str, 0, 0);
-                                    } else {
-                                        ctx.fillText(str, 0, 0);
-                                    }
-                                    ctx.restore();
-                                } else {
-                                    if (isCurve) {
-                                        ctx.strokeText(str, x, y);
-                                    } else {
-                                        ctx.fillText(str, x, y);
-                                    }
-                                }
-                            };
-
-                            if (outlineInfo.scope === 'first') {
-                                const xPos = baseWordX + shiftX;
-                                const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
-                                if (!isDotted) {
-                                    const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
-                                    const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
-                                    ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                }
-                                drawText(textToDraw, xPos, yPos, firstStretch);
-                            } else if (outlineInfo.scope === 'all') {
-                                wordsToDraw.forEach(w => {
-                                    const xPos = gridOriginX + w.offsetLeft + shiftX;
-                                    const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
-                                    if (!isDotted) {
-                                        const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
-                                        ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
-                                    }
-                                    drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
-                                });
-                            }
-                            ctx.restore();
+                        if (isDotted) {
+                            ctx.font = `normal ${fontSizePx}px HP001TD, serif`;
+                            ctx.fillStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.65)' : 'rgba(255, 255, 255, 0.75)';
+                        } else if (isFaint) {
+                            ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                            ctx.fillStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.32)' : 'rgba(255, 255, 255, 0.38)';
+                        } else {
+                            ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                            ctx.strokeStyle = isWhiteBoard ? 'rgba(43, 16, 85, 0.42)' : 'rgba(255, 255, 255, 0.45)';
+                            ctx.lineWidth = isSmall ? 0.8 : 1.0;
                         }
+
+                        const drawText = (str, x, y, strStretch) => {
+                            if (strStretch && strStretch !== 1.0) {
+                                ctx.save();
+                                ctx.translate(x, y);
+                                ctx.scale(strStretch, 1.0);
+                                if (isCurve) {
+                                    ctx.strokeText(str, 0, 0);
+                                } else {
+                                    ctx.fillText(str, 0, 0);
+                                }
+                                ctx.restore();
+                            } else {
+                                if (isCurve) {
+                                    ctx.strokeText(str, x, y);
+                                } else {
+                                    ctx.fillText(str, x, y);
+                                }
+                            }
+                        };
+
+                        if (outlineInfo.scope === 'first') {
+                            const xPos = baseWordX + shiftX;
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                            if (!isDotted) {
+                                const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                                const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                            }
+                            drawText(textToDraw, xPos, yPos, firstStretch);
+                        } else if (outlineInfo.scope === 'all') {
+                            wordsToDraw.forEach(w => {
+                                const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                if (!isDotted) {
+                                    const wordIsBold = w.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+                                    ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                }
+                                drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
+                            });
+                        }
+                        ctx.restore();
                     }
 
-                    // B. Guide dots
+                    // B. Dots
                     if (hasDotConfigs) {
                         if (wordsToDraw && wordsToDraw.length > 0) {
                             wordsToDraw.forEach((wInfo, wIdx) => {
@@ -4776,9 +5550,452 @@ view.exportToPng = async function () {
 
     ctx.restore();
 
-    // 5. Trigger Download
+    const layout = $('#board-color-select').val() || 'board';
     const rawInputLines = $('#input').val().split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const fileName = view.generateFileName(layout, rawInputLines[0] || 'chu_dep');
+    const fileName = view.generateFileName(layout, rawInputLines[0] || 'chu_dep', 'png');
 
+    return { canvas, fileName, widthPx, heightPx };
+};
+
+view.renderStandardBoardToSvg = async function () {
+    const $result = $('#result');
+    const isSmall = $result.hasClass('small');
+    const isBold = $result.hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics');
+    const isWhiteBoard = $('.board').hasClass('white');
+    const textColor = $result.css('color') || (isWhiteBoard ? '#2b1055' : '#ffffff');
+
+    const lines = [];
+    $result.children('p.line').each(function () {
+        const $line = $(this);
+        const lineWords = [];
+        $line.children('.word').each(function () {
+            const wordEl = this;
+            const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+            const rawWord = $(wordEl).attr('data-raw') || '';
+            const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
+            lineWords.push({
+                text: wordText,
+                raw: rawWord,
+                offsetLeft: wordEl.offsetLeft,
+                offsetWidth: wordEl.offsetWidth,
+                stretch: stretch,
+                weight: weight
+            });
+        });
+        lines.push({ words: lineWords });
+    });
+
+    const hasAnyText = ($('#input').val() || '').trim().length > 0;
+    const dotConfig = hasAnyText ? view.getDottingConfig() : null;
+    if (lines.length === 0 || !hasAnyText) {
+        throw new Error("Chưa có nội dung để xuất ảnh!");
+    }
+
+    const ptToPx = 96 / 72;
+    const subGridPx = 14.4 * ptToPx;
+    const bigGridPx = subGridPx * 4;
+
+    const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
+    const lineHeightPx = (isSmall ? 4 : 8) * subGridPx;
+
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d');
+    measureCtx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
+
+    let maxLineRight = 0;
+    lines.forEach(l => {
+        l.words.forEach(w => {
+            const textW = Math.max(w.offsetWidth, measureCtx.measureText(w.text).width);
+            const wordRight = subGridPx + w.offsetLeft + textW;
+            if (wordRight > maxLineRight) {
+                maxLineRight = wordRight;
+            }
+        });
+    });
+
+    if (dotConfig && dotConfig.enabled) {
+        const totalLinesCount = Math.max(lines.length, dotConfig.linesCount || 0);
+        for (let idx = 0; idx < totalLinesCount; idx++) {
+            const lineCfg = view.getDottingConfig(idx);
+            const maxDotsRight = subGridPx + (lineCfg.repetitions * bigGridPx * lineCfg.spaces);
+            if (maxDotsRight > maxLineRight) {
+                maxLineRight = maxDotsRight;
+            }
+        }
+    }
+
+    const gridOriginX = subGridPx;
+    const gridOriginY = subGridPx * 2.5;
+
+    const minViewportWidth = Math.max(window.innerWidth || 1200, 1000);
+    const slantExtra = isItalics ? 140 : 0;
+    const neededWidth = Math.max(minViewportWidth, maxLineRight + bigGridPx * 2 + slantExtra);
+    const widthPx = Math.ceil(neededWidth / bigGridPx) * bigGridPx;
+
+    const firstBaselineY = gridOriginY + 4 * subGridPx;
+    const totalLinesCount = Math.max(lines.length, (dotConfig && dotConfig.enabled) ? dotConfig.linesCount : 0);
+    const lastBaselineY = firstBaselineY + Math.max(0, totalLinesCount - 1) * lineHeightPx;
+    const neededHeight = lastBaselineY + bigGridPx * 2;
+    const heightPx = Math.ceil(neededHeight / bigGridPx) * bigGridPx;
+
+    const fontDefs = await view.buildSvgFontDefs();
+
+    // Grid lines
+    const majorColor = isWhiteBoard ? 'rgba(60, 75, 115, 0.9)' : 'rgba(220, 220, 220, 0.7)';
+    const minorColor = isWhiteBoard ? 'rgba(90, 115, 165, 0.7)' : 'rgba(200, 200, 200, 0.32)';
+
+    let linesSvg = '';
+    const startY = gridOriginY % subGridPx;
+    for (let y = startY; y <= heightPx; y += subGridPx) {
+        const k = Math.round((y - gridOriginY) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
+    }
+
+    const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
+    const xMax = widthPx + heightPx * slantOffset;
+    const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
+
+    for (let x = startX; x <= xMax; x += subGridPx) {
+        const k = Math.round((x - gridOriginX) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
+    }
+
+    // Text & Dots
+    let textSvg = '';
+    let dottingSvg = '';
+
+    lines.forEach((lineObj, idx) => {
+        const yPos = firstBaselineY + (idx * lineHeightPx);
+        lineObj.words.forEach(word => {
+            const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            const fontWeight = wordIsBold ? 'bold' : 'normal';
+            const esc = view.escapeXml(word.text);
+            if (word.stretch && word.stretch !== 1.0) {
+                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${esc}</text>\n`;
+            } else {
+                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${esc}</text>\n`;
+            }
+        });
+    });
+
+    if (dotConfig && dotConfig.enabled) {
+        const olyUnitPx = isSmall ? 9.6 : 19.2;
+        const dotRadius = isSmall ? 2.5 : 3.5;
+        const rawInputLines = ($('#input').val() || '').split('\n').map(l => l.trim());
+
+        for (let idx = 0; idx < totalLinesCount; idx++) {
+            const lineObj = lines[idx];
+            const $line = $($result.children('p.line')[idx]);
+            const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
+            const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : idx;
+            const hasText = lineObj && lineObj.words.length > 0;
+            const lineDotConfig = view.getDottingConfig(validSrcIdx);
+
+            const yPos = firstBaselineY + (idx * lineHeightPx);
+            let wordsToDraw = hasText ? lineObj.words : [];
+            if (wordsToDraw.length === 0) {
+                const $modelLine = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
+                if ($modelLine.length) {
+                    const modelDomIdx = $result.children('p.line').index($modelLine);
+                    if (modelDomIdx !== -1 && lines[modelDomIdx] && lines[modelDomIdx].words.length > 0) {
+                        wordsToDraw = lines[modelDomIdx].words;
+                    }
+                }
+                if (wordsToDraw.length === 0) {
+                    for (let prev = idx - 1; prev >= 0; prev--) {
+                        if (lines[prev] && lines[prev].words.length > 0) {
+                            wordsToDraw = lines[prev].words;
+                            break;
+                        }
+                    }
+                    if (wordsToDraw.length === 0) {
+                        const firstLineWithWords = lines.find(l => l.words.length > 0);
+                        if (firstLineWithWords) {
+                            wordsToDraw = firstLineWithWords.words;
+                        }
+                    }
+                }
+            }
+            let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
+            if (!rawLineText) {
+                const lineFromInput = rawInputLines[validSrcIdx] || rawInputLines.find(l => l.length > 0) || 'a';
+                rawLineText = lineFromInput.split(/\s+/)[0] || 'a';
+            }
+            const charUnit = model.getFirstCharUnit(rawLineText);
+            const activeDotConfig = view.getActiveDotConfig(charUnit, validSrcIdx, 0);
+            let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+            if (!hasDotConfigs && wordsToDraw.length > 1) {
+                for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                    const wInfo = wordsToDraw[wIdx];
+                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                    const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                        hasDotConfigs = true;
+                        break;
+                    }
+                }
+            }
+            const outlineInfo = view.parseOutlineOption(lineDotConfig.outline);
+
+            if (!hasDotConfigs && !outlineInfo.isEnabled) {
+                continue;
+            }
+
+            const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+            const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+            const baseWordX = gridOriginX + wordOffset;
+
+            for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                if (hasText || lineDotConfig.fullDot || j === 0) {
+                    const shiftX = j * bigGridPx * lineDotConfig.spaces;
+
+                    // A. Outline
+                    if (outlineInfo.isEnabled && (!hasText || j > 0)) {
+                        const isDotted = (outlineInfo.style === 'dotted');
+                        const isFaint = (outlineInfo.style === 'faint');
+                        const isCurve = (outlineInfo.style === 'curve');
+
+                        const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
+                        const fillCol = isDotted ? (isWhiteBoard ? 'rgba(43, 16, 85, 0.65)' : 'rgba(255, 255, 255, 0.75)') : (isFaint ? (isWhiteBoard ? 'rgba(43, 16, 85, 0.32)' : 'rgba(255, 255, 255, 0.38)') : 'none');
+                        const strokeAttr = isCurve ? `stroke="${isWhiteBoard ? 'rgba(43, 16, 85, 0.42)' : 'rgba(255, 255, 255, 0.45)'}" stroke-width="${isSmall ? 0.8 : 1.0}"` : '';
+
+                        const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
+                            const esc = view.escapeXml(str);
+                            const weightStr = isBoldWord ? 'bold' : 'normal';
+                            if (strStretch && strStretch !== 1.0) {
+                                return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                            }
+                            return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                        };
+
+                        if (outlineInfo.scope === 'first') {
+                            const xPos = baseWordX + shiftX;
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                            const word0Weight = wordsToDraw[0] ? wordsToDraw[0].weight : null;
+                            const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
+                            dottingSvg += drawSvgText(textToDraw, xPos, yPos, firstStretch, firstWordIsBold);
+                        } else if (outlineInfo.scope === 'all') {
+                            wordsToDraw.forEach(w => {
+                                const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                const wordIsBold = !isDotted && (w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold));
+                                dottingSvg += drawSvgText(textToDraw, xPos, yPos, w.stretch || 1.0, wordIsBold);
+                            });
+                        }
+                    }
+
+                    // B. Dots
+                    if (hasDotConfigs) {
+                        if (wordsToDraw && wordsToDraw.length > 0) {
+                            wordsToDraw.forEach((wInfo, wIdx) => {
+                                const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                const wDotCfg = view.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                    const wBaseX = gridOriginX + wInfo.offsetLeft;
+                                    const wStretch = wInfo.stretch || 1.0;
+                                    for (const dot of wDotCfg.dots) {
+                                        const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
+                                        const dotY = yPos - (dot.y * olyUnitPx);
+                                        dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                    }
+                                }
+                            });
+                        } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                            for (const dot of activeDotConfig.dots) {
+                                const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                const dotY = yPos - (dot.y * olyUnitPx);
+                                dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const italicMatrix = `matrix(1 0 ${(-Math.tan(17 * Math.PI / 180)).toFixed(6)} 1 0 0)`;
+    const textGroup = isItalics ? `<g transform="${italicMatrix}">\n${textSvg}\n${dottingSvg}\n</g>` : `${textSvg}\n${dottingSvg}`;
+
+    const svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
+${fontDefs}
+<rect width="${widthPx}" height="${heightPx}" fill="${isWhiteBoard ? '#ffffff' : '#496e53'}" />
+<g id="grid-lines">
+${linesSvg}
+</g>
+<g id="text-layer">
+${textGroup}
+</g>
+</svg>`;
+
+    const layout = $('#board-color-select').val() || 'board';
+    const rawInputLines = $('#input').val().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const fileName = view.generateFileName(layout, rawInputLines[0] || 'chu_dep', 'svg');
+
+    return { svgString, fileName };
+};
+
+view.exportStandardToPng = async function (customScale) {
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    const { canvas, fileName } = await view.renderStandardBoardToCanvas(customScale);
     await view.downloadCanvasAsPng(canvas, fileName);
 };
+
+view.exportStandardToPdf = async function (customScale) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('Thư viện jsPDF chưa tải xong. Vui lòng thử lại sau giây lát!');
+        return;
+    }
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    const { canvas, widthPx, heightPx } = await view.renderStandardBoardToCanvas(customScale);
+    const isLandscape = (widthPx >= heightPx);
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+    });
+
+    const pageW = isLandscape ? 297 : 210;
+    const pageH = isLandscape ? 210 : 297;
+    const margin = 10;
+    const maxW = pageW - margin * 2;
+    const maxH = pageH - margin * 2;
+
+    const ratio = Math.min(maxW / widthPx, maxH / heightPx);
+    const drawW = widthPx * ratio;
+    const drawH = heightPx * ratio;
+    const offX = margin + (maxW - drawW) / 2;
+    const offY = margin + (maxH - drawH) / 2;
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(imgData, 'JPEG', offX, offY, drawW, drawH, undefined, 'FAST');
+
+    const layout = $('#board-color-select').val() || 'board';
+    const rawInputLines = $('#input').val().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const fileName = view.generateFileName(layout, rawInputLines[0] || 'chu_dep', 'pdf');
+
+    pdf.save(fileName);
+};
+
+view.exportStandardToSvg = async function () {
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    const { svgString, fileName } = await view.renderStandardBoardToSvg();
+    await view.downloadSvg(svgString, fileName);
+};
+
+/* ==========================================================================
+   MASTER EXPORT DISPATCHERS
+   ========================================================================== */
+
+view.exportToPng = async function (customScale) {
+    const layout = $('#board-color-select').val();
+    const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
+    const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+
+    if (isBlackboard) {
+        await view.exportBlackboardToPng(customScale);
+        return;
+    }
+    if (isWhite11x14) {
+        await view.exportWhite11x14ToPng(customScale);
+        return;
+    }
+    await view.exportStandardToPng(customScale);
+};
+
+view.exportToPdf = async function (customScale) {
+    const layout = $('#board-color-select').val();
+    const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
+    const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+
+    if (isBlackboard) {
+        await view.exportBlackboardToPdf(customScale);
+        return;
+    }
+    if (isWhite11x14) {
+        await view.exportWhite11x14ToPdf(customScale);
+        return;
+    }
+    await view.exportStandardToPdf(customScale);
+};
+
+view.exportToSvg = async function () {
+    const layout = $('#board-color-select').val();
+    const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
+    const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+
+    if (isBlackboard) {
+        await view.exportBlackboardToSvg();
+        return;
+    }
+    if (isWhite11x14) {
+        await view.exportWhite11x14ToSvg();
+        return;
+    }
+    await view.exportStandardToSvg();
+};
+
+view.exportFile = async function () {
+    const type = $('#export-type-select').val() || 'png';
+    const scale = view.getExportScale();
+
+    $('#export-dropdown').removeClass('is-open');
+
+    const $btn = $('#btn-execute-export');
+    const originalText = $('#btn-execute-export-label').text();
+    $('#btn-execute-export-label').html('<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất tệp...');
+    $btn.prop('disabled', true);
+
+    try {
+        if (type === 'svg') {
+            await view.exportToSvg();
+        } else if (type === 'pdf') {
+            await view.exportToPdf(scale);
+        } else {
+            await view.exportToPng(scale);
+        }
+    } catch (err) {
+        console.error('Export error:', err);
+        alert('Có lỗi khi xuất tệp: ' + err.message);
+    } finally {
+        $('#btn-execute-export-label').text(originalText);
+        $btn.prop('disabled', false);
+    }
+};
+

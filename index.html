@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.2/css/all.min.css" />
 
     <script src="/static/js/jquery-3.6.0.min.js"></script>
+    <script src="/static/js/jspdf.umd.min.js"></script>
     <script src="/static/js/config.js?v=20261017_1"></script>
     <script src="/static/js/utils.js?v=20261017_1"></script>
     <script src="/static/js/model.js?v=20261017_1"></script>
@@ -211,12 +212,47 @@
               </div>
               <input type="file" id="project-file-input" accept=".json,application/json" style="display: none;" />
 
-              <button type="button" class="btn btn-outline" onclick="window.print()" title="In ra giấy A4 hoặc lưu PDF">
+              <button type="button" class="btn btn-outline" onclick="window.print()" title="In ra giấy A4 hoặc lưu PDF qua hộp thoại in của trình duyệt">
                 <i class="fa-solid fa-print"></i> In bài viết
               </button>
-              <button type="button" class="btn btn-success" onclick="view.exportToPng()" title="Tải hình ảnh nét cao PNG">
-                <i class="fa-solid fa-image"></i> Tải ảnh (PNG)
-              </button>
+
+              <!-- Export Dropdown (PNG, SVG, PDF with auto & custom resolution) -->
+              <div class="dropdown dropdown-left" id="export-dropdown">
+                <button type="button" class="btn btn-success" id="btn-export-dropdown" title="Tùy chọn tải ảnh PNG, SVG hoặc tài liệu PDF">
+                  <i class="fa-solid fa-file-arrow-down"></i> <span id="btn-export-label">Tải ảnh (PNG)</span> <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem;"></i>
+                </button>
+                <div class="dropdown-content export-dropdown-content">
+                  <div class="export-dropdown-header">
+                    <i class="fa-solid fa-sliders" style="color: #10b981;"></i>
+                    <span>Tùy chọn xuất tệp</span>
+                  </div>
+                  <div class="export-controls-row">
+                    <div class="export-control-field">
+                      <label for="export-type-select"><i class="fa-solid fa-file-lines"></i> Định dạng:</label>
+                      <select id="export-type-select">
+                        <option value="png" selected>PNG (Hình ảnh)</option>
+                        <option value="svg">SVG (Vector)</option>
+                        <option value="pdf">PDF (Tài liệu in A4)</option>
+                      </select>
+                    </div>
+                    <div class="export-control-field" id="export-scale-field">
+                      <label for="export-scale-select"><i class="fa-solid fa-maximize"></i> Độ nét:</label>
+                      <select id="export-scale-select">
+                        <option value="2">2x (Tiết kiệm)</option>
+                        <option value="4">4x (Ultra HD)</option>
+                        <option value="6">6x (Super HD)</option>
+                        <option value="8">8x (Master 8K)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="export-device-badge" id="export-device-hint">
+                    <!-- Populated dynamically by JS -->
+                  </div>
+                  <button type="button" class="btn btn-success export-submit-btn" id="btn-execute-export" onclick="view.exportFile()">
+                    <i class="fa-solid fa-download"></i> <span id="btn-execute-export-label">Tải về ngay</span>
+                  </button>
+                </div>
+              </div>
 
               <!-- Download Font Dropdown -->
               <div class="dropdown">

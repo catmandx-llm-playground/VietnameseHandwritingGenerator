@@ -390,7 +390,8 @@ input[type="color"]::-webkit-color-swatch {
     right: auto;
 }
 
-.dropdown:hover .dropdown-content {
+.dropdown:hover .dropdown-content,
+.dropdown.is-open .dropdown-content {
     display: block;
 }
 
@@ -411,6 +412,103 @@ input[type="color"]::-webkit-color-swatch {
 
 .dropdown-item:hover {
     background-color: #f1f5f9;
+}
+
+/* Export Dropdown Specific Styles */
+.export-dropdown-content {
+    min-width: 300px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    background: #ffffff;
+    z-index: 1050;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.export-dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.export-controls-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.export-control-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.export-control-field label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+}
+
+.export-control-field select {
+    height: 32px;
+    padding: 3px 8px;
+    font-size: 0.82rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background-color: #f8fafc;
+    color: #1e293b;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.export-control-field select:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    background-color: #ffffff;
+}
+
+.export-device-badge {
+    font-size: 0.73rem;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.35;
+}
+
+.export-submit-btn {
+    width: 100%;
+    justify-content: center;
+    font-weight: 600;
+    height: 34px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 576px) {
+    .export-dropdown-content {
+        min-width: 270px;
+        right: 0 !important;
+        left: auto !important;
+    }
 }
 
 /* Responsive adjustments */
