@@ -389,9 +389,16 @@ async function runHeadlessTests() {
   }
   console.log('  ✅ Guideline properly hidden after pointer release');
 
-  // 10. Chữ đầu (mờ) Outline Expansion Check
-  console.log('\n🔍 Testing "Chữ đầu (mờ)" (faint_first) outline box expansion...');
+  // 10. Chữ đầu (mờ) Outline Expansion & Single Initial Letter Check
+  console.log('\n🔍 Testing "Chữ đầu (mờ)" (faint_first) outline box expansion & single initial glyph...');
   const outlineExpansionCheck = await page.evaluate(async () => {
+    // Set input to "Nét chữ nết người"
+    const input = document.getElementById('input');
+    input.value = 'Nét chữ nết người';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+
     // Select faint_first
     const sel = document.getElementById('dotting-outline-select');
     sel.value = 'faint_first';
@@ -425,6 +432,9 @@ async function runHeadlessTests() {
   if (outlineExpansionCheck.error) {
     throw new Error(outlineExpansionCheck.error);
   }
+  if (outlineExpansionCheck.text !== 'N') {
+    throw new Error(`Expected outline text to be single initial char "N", got "${outlineExpansionCheck.text}"`);
+  }
   if (!outlineExpansionCheck.paddingRight || outlineExpansionCheck.paddingRight === '0px') {
     throw new Error('Expected paddingRight expansion on guide-outline-word');
   }
@@ -432,6 +442,7 @@ async function runHeadlessTests() {
     throw new Error(`Expected outline overflow: visible, got ${outlineExpansionCheck.overflow}`);
   }
 
+  console.log(`  ✅ "Chữ đầu (mờ)" renders single initial letter 'N' (not full word 'Nét')`);
   console.log(`  ✅ Outline element expanded (paddingRight: ${outlineExpansionCheck.paddingRight}, rectWidth: ${Math.round(outlineExpansionCheck.rectWidth)}px, overflow: visible) preventing cursive capital truncation`);
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'test_07_faint_first_outline_expanded.png') });
 

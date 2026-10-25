@@ -416,7 +416,7 @@ exportEngine.renderBlackboardToCanvas = async function (bgImg, boardEl, bIdx, cu
                             if (outlineInfo.scope === 'first') {
                                 const xPos = baseWordX + shiftX;
                                 const w0 = wordsToDraw[0];
-                                const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                                const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                                 if (!isDotted) {
                                     const word0Weight = w0 ? w0.weight : null;
                                     const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
@@ -637,7 +637,7 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
                         if (outlineInfo.scope === 'first') {
                             const xPos = baseWordX + shiftX;
                             const w0 = wordsToDraw[0];
-                            const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                             const word0Weight = w0 ? w0.weight : null;
                             const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
                             groupInner += drawSvgText(textToDraw, xPos, baselineY, firstStretch, firstWordIsBold);
@@ -1058,7 +1058,7 @@ exportEngine.renderWhite11x14PageToCanvas = async function (boardEl, pIdx, custo
                                 if (outlineInfo.scope === 'first') {
                                     const xPos = baseWordX + shiftX;
                                     const w0 = wordsToDraw[0];
-                                    const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                                    const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                                     if (!isDotted) {
                                         const word0Weight = w0 ? w0.weight : null;
                                         const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
@@ -1305,7 +1305,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
                             if (outlineInfo.scope === 'first') {
                                 const xPos = baseWordX + shiftX;
                                 const w0 = wordsToDraw[0];
-                                const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                                const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                                 const word0Weight = w0 ? w0.weight : null;
                                 const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
                                 dottingSvg += drawSvgText(textToDraw, xPos, yPos, firstStretch, firstWordIsBold);
@@ -1763,7 +1763,7 @@ exportEngine.renderStandardBoardToCanvas = async function (customScale) {
                         if (outlineInfo.scope === 'first') {
                             const xPos = baseWordX + shiftX;
                             const w0 = wordsToDraw[0];
-                            const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                             if (!isDotted) {
                                 const word0Weight = w0 ? w0.weight : null;
                                 const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
@@ -2054,7 +2054,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
                         if (outlineInfo.scope === 'first') {
                             const xPos = baseWordX + shiftX;
                             const w0 = wordsToDraw[0];
-                            const textToDraw = isDotted ? (w0 ? (w0.raw || w0.text) : charUnit) : (w0 ? (w0.text || model.getUnicodeStr(w0.raw)) : model.getUnicodeStr(charUnit));
+                            const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
                             const word0Weight = w0 ? w0.weight : null;
                             const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
                             dottingSvg += drawSvgText(textToDraw, xPos, yPos, firstStretch, firstWordIsBold);
