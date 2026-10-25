@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "test": "node tests/verify-refactor.js"
+    "test": "node tests/verify-refactor.js",
+    "test:headless": "node tests/test-headless.js",
+    "test:all": "node tests/verify-refactor.js && node tests/test-headless.js"
   },
   "devDependencies": {
     "@types/jquery": "^3.5.14",

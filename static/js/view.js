@@ -15,6 +15,18 @@ import { uiController } from './modules/ui-controller.js';
  * backward compatibility for inline DOM event handlers and external scripts.
  */
 export const view = {
+    // Module References
+    config: APP_CONFIG,
+    utils,
+    model,
+    boardRenderer,
+    dottingManager,
+    dragStretchHandler,
+    freestyleDottingModal,
+    storageManager,
+    exportEngine,
+    uiController,
+
     escapeHtml,
 
     // Lifecycle
