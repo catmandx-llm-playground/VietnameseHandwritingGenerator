@@ -770,6 +770,7 @@ body.is-word-stretching {
     user-select: none;
     -webkit-user-select: none;
     z-index: 3;
+    overflow: visible !important;
 }
 
 .guide-outline-word {
@@ -781,12 +782,15 @@ body.is-word-stretching {
     user-select: none;
     -webkit-user-select: none;
     white-space: nowrap;
-    overflow: visible !important;
     line-height: inherit;
     font-size: inherit;
     font-family: inherit;
     font-weight: inherit;
     font-style: inherit;
+    overflow: visible !important;
+    padding-right: 0.5em; /* Expands element box to accommodate flourishing cursive strokes (e.g. capital N) without cutoff */
+    min-width: 1.5em;
+    box-sizing: content-box;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
 }
