@@ -282,14 +282,70 @@ dragStretchHandler.setupDragInteractions = function () {
         const startScale = parseFloat($word.attr('data-stretch')) || 1.0;
         const startRenderedWidth = naturalWidth * startScale;
 
+        const $line = $word.closest('p.line');
+        const $board = $word.closest('.board');
+
+        const stretchCfg = APP_CONFIG.wordStretch || {
+            stretchTargetPercent: 121.89,
+            minStretchPercent: 100,
+            maxStretchPercent: 150,
+            snapTolerancePercent: 2.5
+        };
+
+        const targetScale = (stretchCfg.stretchTargetPercent || 121.89) / 100;
+        const minScale = (stretchCfg.minStretchPercent || 100) / 100;
+        const maxScale = (stretchCfg.maxStretchPercent || 150) / 100;
+        const snapTolerance = (stretchCfg.snapTolerancePercent || 2.5) / 100;
+
+        // Create or find the green snap guideline denoting optimal stretch (121.89%)
+        let $guideline = $board.find('.snap-guideline');
+        if (!$guideline.length) {
+            $guideline = $('<div class="snap-guideline no-print"></div>');
+            $board.append($guideline);
+        }
+
+        const boardRect = $board.length ? $board[0].getBoundingClientRect() : { left: 0, top: 0 };
+        const lineRect = $line.length ? $line[0].getBoundingClientRect() : { left: 0, top: 0, height: 153.6 };
+        const wordRect = wordEl.getBoundingClientRect();
+
+        // Calculate snap guideline position on board (anchored at target width right edge)
+        const wordStartLeftOnBoard = wordRect.left - boardRect.left + ($board.scrollLeft() || 0);
+        const targetSnapLeft = wordStartLeftOnBoard + (naturalWidth * targetScale);
+        const lineTopOnBoard = lineRect.top - boardRect.top + ($board.scrollTop() || 0);
+
+        const isCurrentlySnapped = Math.abs(startScale - targetScale) <= snapTolerance;
+
+        $guideline.css({
+            top: lineTopOnBoard + 'px',
+            height: lineRect.height + 'px',
+            left: targetSnapLeft + 'px',
+            display: 'block'
+        });
+
+        if (isCurrentlySnapped) {
+            $guideline.addClass('is-snapped');
+            $(handleEl).addClass('is-snapped');
+        } else {
+            $guideline.removeClass('is-snapped');
+            $(handleEl).removeClass('is-snapped');
+        }
+
         stretchState = {
             pointerId: e.pointerId,
             handleEl: handleEl,
             $word: $word,
             $wordText: $wordText,
+            $stretchBtn: $(handleEl),
+            $line: $line,
+            $board: $board,
+            $guideline: $guideline,
             naturalWidth: naturalWidth,
             startX: e.clientX,
             startRenderedWidth: startRenderedWidth,
+            targetScale: targetScale,
+            minScale: minScale,
+            maxScale: maxScale,
+            snapTolerance: snapTolerance,
             lastScale: startScale
         };
 
@@ -318,18 +374,19 @@ dragStretchHandler.setupDragInteractions = function () {
         const newRenderedWidth = stretchState.startRenderedWidth + deltaX;
         let scale = newRenderedWidth / stretchState.naturalWidth;
 
-        const stretchCfg = APP_CONFIG.wordStretch || {};
-        const minScale = (stretchCfg.minStretchPercent || 100) / 100;
-        const maxScale = (stretchCfg.maxStretchPercent || 150) / 100;
-        const targetScale = (stretchCfg.stretchTargetPercent || 121.89) / 100;
-        const snapTolerance = (stretchCfg.snapTolerancePercent || 2.5) / 100;
+        scale = Math.max(stretchState.minScale, Math.min(stretchState.maxScale, scale));
 
-        scale = Math.max(minScale, Math.min(maxScale, scale));
-
-        if (Math.abs(scale - targetScale) <= snapTolerance) {
-            scale = targetScale;
-        } else if (Math.abs(scale - 1.0) <= 0.02) {
-            scale = 1.0;
+        const isSnapped = Math.abs(scale - stretchState.targetScale) <= stretchState.snapTolerance;
+        if (isSnapped) {
+            scale = stretchState.targetScale;
+            stretchState.$stretchBtn.addClass('is-snapped');
+            stretchState.$guideline.addClass('is-snapped');
+        } else {
+            stretchState.$stretchBtn.removeClass('is-snapped');
+            stretchState.$guideline.removeClass('is-snapped');
+            if (Math.abs(scale - 1.0) <= 0.02) {
+                scale = 1.0;
+            }
         }
 
         stretchState.lastScale = scale;
@@ -355,7 +412,13 @@ dragStretchHandler.setupDragInteractions = function () {
         if (stretchState.$word) {
             stretchState.$word.removeClass('is-stretching');
         }
+        if (stretchState.$stretchBtn) {
+            stretchState.$stretchBtn.removeClass('is-stretching is-snapped');
+        }
         $('body').removeClass('is-word-stretching');
+        if (stretchState.$guideline) {
+            stretchState.$guideline.removeClass('is-snapped').hide();
+        }
         stretchState = null;
         if (typeof window !== 'undefined' && window.view && typeof window.view.triggerAutoSave === 'function') {
             window.view.triggerAutoSave(true);

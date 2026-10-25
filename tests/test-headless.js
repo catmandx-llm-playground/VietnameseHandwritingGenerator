@@ -282,6 +282,113 @@ async function runHeadlessTests() {
   }
   console.log('  ✅ Freestyle Dotting Modal interactive trigger verified');
 
+  // 9. Optimal Stretch Green Guideline Verification
+  console.log('\n🔍 Testing Green Optimal Stretch Guideline (.snap-guideline)...');
+  const stretchGuidelineCheck = await page.evaluate(async () => {
+    const firstWord = document.querySelector('#result .line .word');
+    if (!firstWord) return { error: 'No word found' };
+    const stretchBtn = firstWord.querySelector('.btn-word-stretch');
+    if (!stretchBtn) return { error: 'No stretch button found' };
+
+    const btnRect = stretchBtn.getBoundingClientRect();
+    const startX = btnRect.left + (btnRect.width / 2);
+    const startY = btnRect.top + (btnRect.height / 2);
+
+    // Pointer down to initiate stretch
+    stretchBtn.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      clientX: startX,
+      clientY: startY,
+      pointerId: 1,
+      pointerType: 'mouse',
+      button: 0,
+      buttons: 1
+    }));
+
+    await new Promise(r => setTimeout(r, 100));
+
+    const board = document.querySelector('.board');
+    const guideline = board?.querySelector('.snap-guideline');
+    const guidelineStyle = guideline ? window.getComputedStyle(guideline) : null;
+
+    const initialCheck = {
+      guidelineExists: !!guideline,
+      display: guidelineStyle?.display,
+      borderLeftColor: guidelineStyle?.borderLeftColor,
+      borderLeftStyle: guidelineStyle?.borderLeftStyle,
+      isSnappedInitially: guideline?.classList.contains('is-snapped'),
+      top: guidelineStyle?.top,
+      height: guidelineStyle?.height,
+      left: guidelineStyle?.left
+    };
+
+    // Simulate drag to optimal 121.89% stretch
+    const naturalWidth = parseFloat(firstWord.getAttribute('data-natural-width')) || 100;
+    const targetDeltaX = naturalWidth * (1.2189 - 1.0);
+
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      cancelable: true,
+      clientX: startX + targetDeltaX,
+      clientY: startY,
+      pointerId: 1,
+      pointerType: 'mouse',
+      buttons: 1
+    }));
+
+    await new Promise(r => setTimeout(r, 100));
+
+    const snappedCheck = {
+      isSnappedAfterMove: guideline?.classList.contains('is-snapped'),
+      stretchBtnSnapped: stretchBtn.classList.contains('is-snapped'),
+      wordStretchAttr: firstWord.getAttribute('data-stretch'),
+      snappedBorderLeftColor: window.getComputedStyle(guideline).borderLeftColor
+    };
+
+    // Don't release pointer yet so screenshot captures the active green line!
+    return {
+      initialCheck,
+      snappedCheck
+    };
+  });
+
+  console.log('  Stretch Guideline Check Result:', JSON.stringify(stretchGuidelineCheck, null, 2));
+
+  if (!stretchGuidelineCheck.initialCheck?.guidelineExists) {
+    throw new Error('Snap guideline element does not exist on board');
+  }
+  if (stretchGuidelineCheck.initialCheck?.display !== 'block') {
+    throw new Error(`Expected guideline display: block, got ${stretchGuidelineCheck.initialCheck?.display}`);
+  }
+  if (!stretchGuidelineCheck.snappedCheck?.isSnappedAfterMove) {
+    throw new Error('Guideline failed to snap at optimal stretch ratio (121.89%)');
+  }
+
+  console.log('  ✅ Green optimal stretch guideline displayed and snapped at 121.89% target');
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'test_06_optimal_stretch_green_line.png') });
+
+  // Now release pointer to clean up
+  await page.evaluate(() => {
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1
+    }));
+  });
+  await new Promise(r => setTimeout(r, 100));
+
+  const postReleaseCheck = await page.evaluate(() => {
+    const guideline = document.querySelector('.board .snap-guideline');
+    return {
+      display: guideline ? window.getComputedStyle(guideline).display : null
+    };
+  });
+  if (postReleaseCheck.display !== 'none') {
+    throw new Error(`Expected guideline display: none after pointerup, got ${postReleaseCheck.display}`);
+  }
+  console.log('  ✅ Guideline properly hidden after pointer release');
+
   await browser.close();
 
   console.log('\n================ FINAL TEST REPORT ================');

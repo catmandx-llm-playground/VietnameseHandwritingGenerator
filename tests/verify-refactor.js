@@ -150,6 +150,11 @@ async function runTests() {
     assert(exportJs.includes("minorColor = 'rgba(90, 115, 165, 0.7)'"), 'Export minorColor calibrated to rgba(90, 115, 165, 0.7)');
     assert(exportJs.includes('dotRadius = isSmall ? 1.25 : 1.75;'), 'Export dotRadius calibrated to 1.25 / 1.75');
 
+    // 5. Optimal Stretch Guideline Invariants
+    const dragJs = fs.readFileSync(path.join(projectRoot, 'static/js/modules/drag-stretch-handler.js'), 'utf-8');
+    assert(boardCss.includes('.snap-guideline') && boardCss.includes('.snap-guideline.is-snapped'), 'Green snap guideline CSS styles present in board.css');
+    assert(dragJs.includes('.snap-guideline') && dragJs.includes('targetSnapLeft') && dragJs.includes('is-snapped'), 'Optimal stretch green guideline logic wired in drag-stretch-handler.js');
+
     // -------------------------------------------------------------------------
     // TEST SUITE 4: Live Docker Container (127.0.0.1:8080) Verification
     // -------------------------------------------------------------------------

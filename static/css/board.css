@@ -688,23 +688,29 @@ body.is-word-dragging {
     transform: translateY(-50%) scale(1.45);
 }
 
-/* Snap Guideline (vertical dashed line across the line height) */
+/* Snap Guideline (vertical green dashed line across the line height marking optimal stretch target) */
 .snap-guideline {
     position: absolute;
     width: 0;
-    border-left: 2px dashed #60a5fa;
+    border-left: 2px dashed #10b981;
     pointer-events: none;
     display: none;
     z-index: 85;
-    transition: border-color 0.1s ease;
+    transition: border-color 0.1s ease, box-shadow 0.1s ease;
 }
 
 .white .snap-guideline {
-    border-left-color: #3b82f6;
+    border-left-color: #059669;
 }
 
 .snap-guideline.is-snapped {
-    border-left: 2px solid #10b981;
+    border-left: 2.5px solid #10b981 !important;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.white .snap-guideline.is-snapped {
+    border-left: 2.5px solid #059669 !important;
+    box-shadow: 0 0 8px rgba(5, 150, 105, 0.7);
 }
 
 body.is-word-stretching {
