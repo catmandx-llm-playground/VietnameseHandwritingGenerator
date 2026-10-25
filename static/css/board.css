@@ -742,6 +742,7 @@ body.is-word-stretching {
     height: 100%;
     pointer-events: none;
     z-index: 4;
+    overflow: visible !important;
 }
 
 .guide-dot {
@@ -780,6 +781,7 @@ body.is-word-stretching {
     user-select: none;
     -webkit-user-select: none;
     white-space: nowrap;
+    overflow: visible !important;
     line-height: inherit;
     font-size: inherit;
     font-family: inherit;

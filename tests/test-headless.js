@@ -389,6 +389,63 @@ async function runHeadlessTests() {
   }
   console.log('  ✅ Guideline properly hidden after pointer release');
 
+  // 10. Testing "Chữ đầu (Mờ)" (faint_first) complete word & overflowing cursive glyphs
+  console.log('\n🔍 Testing "Chữ đầu (Mờ)" (faint_first) word preservation & cursive capital N...');
+  const outlineCheck = await page.evaluate(async () => {
+    const input = document.getElementById('input');
+    input.value = 'Nét chữ nết người';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const chk = document.getElementById('dotting-checkbox');
+    chk.checked = true;
+    chk.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const linesInput = document.getElementById('dotting-lines-input');
+    if (linesInput) {
+      linesInput.value = '2';
+      linesInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    const select = document.getElementById('dotting-outline-select');
+    select.value = 'faint_first';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await new Promise(r => setTimeout(r, 400));
+
+    const lines = Array.from(document.querySelectorAll('#result .line'));
+    const line0Outlines = Array.from(lines[0]?.querySelectorAll('.guide-outline-word') || []).map(o => o.textContent);
+    const line1Outlines = Array.from(lines[1]?.querySelectorAll('.guide-outline-word') || []).map(o => o.textContent);
+
+    // Also test with single capital letter 'N'
+    input.value = 'N';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 400));
+
+    const singleLetterLines = Array.from(document.querySelectorAll('#result .line'));
+    const singleLetterLine1 = Array.from(singleLetterLines[1]?.querySelectorAll('.guide-outline-word') || []).map(o => ({
+      text: o.textContent,
+      left: o.style.left
+    }));
+
+    return {
+      wordOutlineLine0: line0Outlines[0],
+      wordOutlineLine1: line1Outlines[0],
+      singleLetterLine1
+    };
+  });
+
+  console.log('  Outline check result:', outlineCheck);
+  // Word "Nét" should be preserved completely (mapped to cursive ligature "N˛t" in HP001), not truncated to single letter "N"
+  if (!outlineCheck.wordOutlineLine1 || !outlineCheck.wordOutlineLine1.includes('˛')) {
+    throw new Error(`Expected first word "Nét" (ligature "N˛t") preserved in practice line outline, got: ${outlineCheck.wordOutlineLine1}`);
+  }
+  console.log('  ✅ "Chữ đầu (Mờ)" preserves complete first word ("Nét" / "N˛t") without truncation');
+
+  if (!outlineCheck.singleLetterLine1 || outlineCheck.singleLetterLine1.length === 0 || outlineCheck.singleLetterLine1[0].text !== 'N') {
+    throw new Error(`Expected standalone capital "N" rendered in practice line outline, got: ${JSON.stringify(outlineCheck.singleLetterLine1)}`);
+  }
+  console.log('  ✅ Standalone cursive capital "N" preserved and positioned cleanly on practice lines');
+
   await browser.close();
 
   console.log('\n================ FINAL TEST REPORT ================');

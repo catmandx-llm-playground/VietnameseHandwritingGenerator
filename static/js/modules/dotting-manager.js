@@ -592,9 +592,9 @@ dottingManager.renderDotsForLine = function ($line, lineTokens, lineIndex, confi
                         const transformStyle = wStretch !== 1.0 ? `transform: scaleX(${wStretch}); transform-origin: 0 0;` : '';
                         let displayText = '';
                         if (outlineInfo.style === 'dotted') {
-                            displayText = charUnit;
+                            displayText = word0 ? (word0.raw || word0.text) : charUnit;
                         } else {
-                            displayText = model.getUnicodeStr(charUnit);
+                            displayText = word0 ? (word0.text || model.getUnicodeStr(word0.raw)) : model.getUnicodeStr(charUnit);
                         }
                         const weightAttr = (word0 && word0.weight) ? ` data-weight="${word0.weight}"` : '';
                         const $span = $(`<span class="${outlineClass}"${weightAttr} style="left: ${x}px; ${transformStyle}">${escapeHtml(displayText)}</span>`);

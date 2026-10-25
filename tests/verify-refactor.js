@@ -155,6 +155,13 @@ async function runTests() {
     assert(boardCss.includes('.snap-guideline') && boardCss.includes('.snap-guideline.is-snapped'), 'Green snap guideline CSS styles present in board.css');
     assert(dragJs.includes('.snap-guideline') && dragJs.includes('targetSnapLeft') && dragJs.includes('is-snapped'), 'Optimal stretch green guideline logic wired in drag-stretch-handler.js');
 
+    // 6. Faint First Word Preservation & Overflow Invariants
+    const dottingJs = fs.readFileSync(path.join(projectRoot, 'static/js/modules/dotting-manager.js'), 'utf-8');
+    assert(dottingJs.includes('word0.text || model.getUnicodeStr(word0.raw)'), 'dotting-manager preserves full first word in faint_first mode');
+    assert(exportJs.includes('w0.text || model.getUnicodeStr(w0.raw)'), 'export-engine preserves full first word in faint_first mode');
+    assert(boardCss.includes('.guide-dots-layer') && boardCss.includes('overflow: visible !important;'), '.guide-dots-layer has overflow: visible !important');
+    assert(boardCss.includes('.guide-outline-word') && boardCss.includes('overflow: visible !important;'), '.guide-outline-word has overflow: visible !important');
+
     // -------------------------------------------------------------------------
     // TEST SUITE 4: Live Docker Container (127.0.0.1:8080) Verification
     // -------------------------------------------------------------------------
