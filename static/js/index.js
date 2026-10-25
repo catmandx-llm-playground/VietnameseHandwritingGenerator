@@ -1,5 +1,14 @@
-window.onload = handler;
+import { controller } from './controller.js';
 
-function handler(){
-    controller.initEditor()
+/**
+ * Main Application Entry Point
+ */
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            controller.initEditor();
+        });
+    } else {
+        controller.initEditor();
+    }
 }

@@ -1,5 +1,24 @@
 # Agent Guidelines & Invariants
 
+> [!NOTE]
+> For a comprehensive system architectural overview, glyph pipeline diagrams, state schemas, and subsystem documentation, see **[ARCHITECTURE.md](file:///root/projects/handwriting/ARCHITECTURE.md)**.
+
+## ES Module Architecture & Subsystems
+- **Zero-Build Native ES Modules**: The core frontend runs native browser ES modules (`type="module"` in `index.html`) served directly by Nginx without bundlers.
+- **Module Separation (`static/js/modules/`)**:
+  - `config.js`: Central configuration (`APP_CONFIG`).
+  - `utils.js`: Vietnamese linguistic functions, tone detection, accent stripping.
+  - `model.js`: Glyph data loader, compound consonant grouping, ligature lookup.
+  - `board-renderer.js`: Board layout synchronization and DOM line rendering.
+  - `dotting-manager.js`: Auto-spacing, guide dot overlay, and outline tracing.
+  - `drag-stretch-handler.js`: Word drag positioning, horizontal stretch, bold override.
+  - `freestyle-dotting-modal.js`: Interactive SVG ô ly grid editor.
+  - `storage-manager.js`: LocalStorage draft auto-save and `.json` project file import/export.
+  - `export-engine.js`: Multi-format Canvas PNG, SVG vector, and PDF rendering.
+  - `ui-controller.js`: Main toolbar bindings, input controls, presets, and sample loader.
+- **Facade Pattern**: `static/js/view.js` acts as the unified facade providing backward compatibility for inline HTML event handlers (`window.view = view`). When adding new features, implement logic in the specialized module and expose via the facade.
+- **Automated Verification**: Always run `npm test` (or `node tests/verify-refactor.js`) after making changes to verify all 54 regression and invariant checks.
+
 ## Line Geometry & Spacing Invariant
 - **Immutable Line Heights**: The text lines (`#result, .result-text`) use a rigid CSS Grid architecture with fixed row tracks:
   - 72pt (large / 2 ô ly): `grid-auto-rows: calc(var(--grid-unit) * 8);` (153.6px)
@@ -28,7 +47,7 @@
   - **Never apply CSS Grid multiline line-height capping (`76.8px` or `153.6px`) to `.board.blackboard`**, as this applies negative half-leading to the large font ($144.66\text{px}$ / $281.5\text{px}$), shifting the text $34\text{px}$–$68\text{px}$ above the guideline and displacing italicized text horizontally.
 
 ## 11x14 Notebook Layout Export Metrics & Invariants
-- **Scope Isolation**: Export rendering logic (Canvas PNG/PDF via `view.exportWhite11x14ToPng` and SVG via `view.renderWhite11x14SvgPage` in `static/js/view.js`) is completely isolated from on-screen DOM styles (`.board.white_11x14`, `.grid`, `.guide-dot`). Changes to export boldness or dot sizes do not mutate web view presentation.
+- **Scope Isolation**: Export rendering logic (Canvas PNG/PDF via `exportEngine.exportWhite11x14ToPng` and SVG via `exportEngine.renderWhite11x14PageToSvg` in `static/js/modules/export-engine.js`) is completely isolated from on-screen DOM styles (`.board.white_11x14`, `.grid`, `.guide-dot`). Changes to export boldness or dot sizes do not mutate web view presentation.
 - **Grid Thickness Constants**:
   - `gridLineWidthMajor = 1.4;` (30% reduction from 2.0 baseline)
   - `gridLineWidthMinor = 0.7;` (30% reduction from 1.0 baseline)
