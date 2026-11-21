@@ -6,12 +6,14 @@ with open('data/all.json', 'r', encoding='utf-8') as f:
 ascii_json = json.dumps(data, separators=(',', ':'), ensure_ascii=True)
 
 raw_jsx = r'''#target illustrator
+#targetengine "main"
 /**
  * Vietnamese Handwriting Generator for Adobe Illustrator (HP001 Font)
  * Features:
  * - Direct Vietnamese handwriting glyph conversion (HP001 ligatures)
- * - Automatic named line matching (H1, H2, ... Hxx) and Bounding Box (BB) alignment
- * - Automatic containment inside BB (with optional Auto-Fit to BB width)
+ * - Deep recursive scanning of nested groups: G1 -> (VL, BB, HL -> H1, H2.. Hxx)
+ * - Exact PointText placement on H baseline & inside BB
+ * - Non-blocking floating palette with live instant canvas updates
  * - Horizontal stretching (custom & 121.89% optimal cursive standard)
  * - Live line nudging & movement with instant app.redraw()
  * - Full Unicode escaping & font dropdown for Windows English Illustrator
@@ -48,7 +50,6 @@ function isLetter(c) {
 function getAccent(ch) {
     if (!ch) return 'level';
     ch = ch.toLowerCase();
-    // Special diphthong cases
     if (/ooc/.test(ch)) return 'level';
     if (/oon/.test(ch)) return 'level';
     if (/o\u00F2n/.test(ch)) return 'lower';
@@ -56,14 +57,14 @@ function getAccent(ch) {
     if (/o\u00F3c/.test(ch)) return 'acute';
     if (/o\u1ECDc/.test(ch)) return 'heavy';
 
-    // Combining diacritical marks (Unicode Tổ hợp from Unikey/EVKey)
+    // Combining diacritical marks (Unicode To hop from Unikey/EVKey)
     if (/[\u0301]/.test(ch)) return 'acute';
     if (/[\u0300]/.test(ch)) return 'lower';
     if (/[\u0309]/.test(ch)) return 'rising';
     if (/[\u0303]/.test(ch)) return 'raised';
     if (/[\u0323]/.test(ch)) return 'heavy';
 
-    // Precomposed Unicode (Unicode Dựng sẵn)
+    // Precomposed Unicode (Unicode Dung san)
     var accentList = {
         'acute': '\u00E1\u1EAF\u1EA5\u00F3\u1ED1\u1EDB\u00E9\u1EBF\u00ED\u00FA\u1EE9\u00FD',
         'lower': '\u00E0\u1EB1\u1EA7\u00F2\u1ED3\u1EDD\u00E8\u1EC1\u00EC\u00F9\u1EEB\u1EF3',
@@ -99,7 +100,6 @@ function isUpperCase(str) {
 }
 
 function removeAccents(str) {
-    // Strip combining marks
     str = str.replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '');
 
     var AccentsMap = [
@@ -239,45 +239,63 @@ function scanHPFonts() {
     return found;
 }
 
-// --- 5. Named Grid Scanner (Lines H1..Hxx and Bounding Box BB) ---
+// --- 5. Recursive Named Grid Scanner (Nested Groups: G1 -> VL, BB, HL -> H1..Hxx) ---
 function scanGridItems() {
     if (!app.documents.length) return null;
     var doc = app.activeDocument;
-    var bbItem = null;
-    var hLinesMap = {};
-    var lineNumbers = [];
+    var result = {
+        bb: null,
+        linesMap: {},
+        lineNumbers: []
+    };
 
-    for (var i = 0; i < doc.pageItems.length; i++) {
-        var it = doc.pageItems[i];
+    function inspectItem(it) {
+        if (!it) return;
         var nm = it.name ? it.name.replace(/^\s+|\s+$/g, '') : '';
-        if (!nm) continue;
-
-        if (/^(BB|BOUNDING[\s_-]?BOX)$/i.test(nm)) {
-            bbItem = it;
-        } else {
-            var m = nm.match(/^H[\s_-]?(\d+)$/i);
-            if (m) {
-                var num = parseInt(m[1], 10);
-                if (!hLinesMap[num]) {
-                    hLinesMap[num] = it;
-                    lineNumbers.push(num);
+        if (nm) {
+            if (/^(BB|BOUNDING[\s_-]?BOX)$/i.test(nm)) {
+                if (!result.bb) result.bb = it;
+            } else {
+                var m = nm.match(/^H[\s_-]?(\d+)$/i);
+                if (m) {
+                    var num = parseInt(m[1], 10);
+                    if (!result.linesMap[num]) {
+                        result.linesMap[num] = it;
+                        result.lineNumbers.push(num);
+                    }
                 }
+            }
+        }
+
+        // Deeply recurse into groups
+        if (it.typename === 'GroupItem' && it.pageItems && it.pageItems.length > 0) {
+            for (var j = 0; j < it.pageItems.length; j++) {
+                inspectItem(it.pageItems[j]);
             }
         }
     }
 
-    lineNumbers.sort(function (a, b) { return a - b; });
+    // Traverse all top-level layers and items
+    for (var i = 0; i < doc.pageItems.length; i++) {
+        inspectItem(doc.pageItems[i]);
+    }
 
-    return {
-        bb: bbItem,
-        linesMap: hLinesMap,
-        lineNumbers: lineNumbers
-    };
+    result.lineNumbers.sort(function (a, b) { return a - b; });
+    return result;
 }
 
-// --- 6. ScriptUI Dialog Window ---
-function buildHandwritingDialog() {
-    var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment');
+// --- 6. ScriptUI Floating Palette (Non-modal with persistent engine) ---
+function buildHandwritingPalette() {
+    // Avoid duplicate windows
+    if (typeof $.global.vnHandwritingPalette !== 'undefined' && $.global.vnHandwritingPalette !== null) {
+        try {
+            $.global.vnHandwritingPalette.close();
+        } catch (e) {}
+    }
+
+    var win = new Window('palette', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment', undefined, { resizeable: true });
+    $.global.vnHandwritingPalette = win;
+
     win.orientation = 'column';
     win.alignChildren = ['fill', 'top'];
     win.spacing = 8;
@@ -292,7 +310,7 @@ function buildHandwritingDialog() {
 
     var defaultVietnameseText = 'C\u1ED9ng h\u00F2a x\u00E3 h\u1ED9i ch\u1EE7 ngh\u0129a Vi\u1EC7t Nam\n\u0110\u1ED9c l\u1EADp - T\u1EF1 do - H\u1EA1nh ph\u00FAc';
     var txtInput = pText.add('edittext', undefined, defaultVietnameseText, { multiline: true, scrollable: true });
-    txtInput.preferredSize = [520, 70];
+    txtInput.preferredSize = [520, 68];
 
     // Font Controls Row
     var rFont = pText.add('group');
@@ -329,7 +347,6 @@ function buildHandwritingDialog() {
     var chkBold = rFont.add('checkbox', undefined, '\u0110\u1EADm (Bold)');
     chkBold.value = false;
 
-    // Scan installed HP001 fonts
     var hpFontList = scanHPFonts();
     if (hpFontList.length > 0) {
         ddFontSelect.removeAll();
@@ -445,7 +462,6 @@ function buildHandwritingDialog() {
         refreshGridDisplay();
     };
 
-    // Initial scan on dialog open
     refreshGridDisplay();
 
     // --- Panel C: Stretch & Movement ---
@@ -634,10 +650,11 @@ function buildHandwritingDialog() {
 
             // Find H line for Y baseline
             var targetBaselineY = 0;
+            var hItem = null;
 
             if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
-                var hItem = gridData.linesMap[currentLineNum];
-                var gb = hItem.geometricBounds; // [left, top, right, bottom]
+                hItem = gridData.linesMap[currentLineNum];
+                var gb = hItem.geometricBounds; // [left, top, right, bottom] in global document coords
                 targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
                 if (!gridData.bb) {
                     bbLeft = gb[0];
@@ -658,7 +675,28 @@ function buildHandwritingDialog() {
 
             var targetX = bbLeft + indent;
 
-            var tf = doc.textFrames.add();
+            // Target container layer (same layer as grid or active layer)
+            var targetContainer = doc.activeLayer;
+            if (hItem && hItem.layer && !hItem.layer.locked && hItem.layer.visible) {
+                targetContainer = hItem.layer;
+            } else if (gridData && gridData.bb && gridData.bb.layer && !gridData.bb.layer.locked && gridData.bb.layer.visible) {
+                targetContainer = gridData.bb.layer;
+            }
+
+            // Create PointText at the exact anchor coordinates
+            var tf = null;
+            try {
+                tf = targetContainer.textFrames.pointText([targetX, targetBaselineY]);
+            } catch (e1) {
+                try {
+                    tf = doc.textFrames.pointText([targetX, targetBaselineY]);
+                } catch (e2) {
+                    tf = targetContainer.textFrames.add();
+                    tf.left = targetX;
+                    tf.top = targetBaselineY;
+                }
+            }
+
             tf.name = 'Handwriting_H' + currentLineNum;
 
             if (targetFont) {
@@ -677,8 +715,8 @@ function buildHandwritingDialog() {
                 } catch (e) {}
             }
 
-            // Anchor point in point text sets baseline position
-            tf.anchor = [targetX, targetBaselineY];
+            // Verify position: Ensure tf is firmly placed at targetX and sits on targetBaselineY
+            tf.left = targetX;
 
             // Auto-fit to BB Width if requested and text overflows BB
             if (bbRight !== null && chkAutoFitBB.value) {
@@ -688,17 +726,20 @@ function buildHandwritingDialog() {
                 if (maxW > 10 && curW > maxW) {
                     var fitScale = (maxW / curW) * stretchVal;
                     tf.textRange.characterAttributes.horizontalScale = Math.round(fitScale * 100) / 100;
+                    tf.left = targetX;
                 }
             }
 
             createdItems.push(tf);
         }
 
+        // Select the newly created text frames so user can see handles immediately
         doc.selection = null;
         for (var k = 0; k < createdItems.length; k++) {
             createdItems[k].selected = true;
         }
 
+        // Force immediate artboard render without closing palette
         app.redraw();
     };
 
@@ -706,8 +747,8 @@ function buildHandwritingDialog() {
     win.show();
 }
 
-// Run dialog
-buildHandwritingDialog();
+// Run non-blocking palette
+buildHandwritingPalette();
 '''
 
 output = raw_jsx.replace('__EMBEDDED_GLYPH_DATA__', ascii_json)
