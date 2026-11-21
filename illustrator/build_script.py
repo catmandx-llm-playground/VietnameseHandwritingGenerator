@@ -6,17 +6,15 @@ with open('data/all.json', 'r', encoding='utf-8') as f:
 ascii_json = json.dumps(data, separators=(',', ':'), ensure_ascii=True)
 
 raw_jsx = r'''#target illustrator
-#targetengine "main"
 /**
  * Vietnamese Handwriting Generator for Adobe Illustrator (HP001 Font)
  * Features:
  * - Direct Vietnamese handwriting glyph conversion (HP001 ligatures)
  * - Deep recursive scanning of nested groups: G1 -> (VL, BB, HL -> H1, H2.. Hxx)
- * - Safe getActiveDoc() to prevent focus-loss errors in floating palette
+ * - Synchronous modal dialog execution (100% immune to "there is no document" focus errors)
  * - Exact PointText placement on H baseline & inside BB
- * - Non-blocking floating palette with live instant canvas updates
+ * - Automatic containment inside BB (with optional Auto-Fit to BB width)
  * - Horizontal stretching (custom & 121.89% optimal cursive standard)
- * - Live line nudging & movement with instant app.redraw()
  * - Full Unicode escaping & font dropdown for Windows English Illustrator
  */
 
@@ -221,22 +219,7 @@ function convertLine(text) {
     return out;
 }
 
-// --- 4. Document & Typography Helpers ---
-function getActiveDoc() {
-    if (!app.documents || app.documents.length === 0) {
-        return null;
-    }
-    try {
-        return app.activeDocument;
-    } catch (eActive) {
-        try {
-            return app.documents[0];
-        } catch (eIndex) {
-            return null;
-        }
-    }
-}
-
+// --- 4. Font Scanner ---
 function scanHPFonts() {
     var found = [];
     if (!app.textFonts || app.textFonts.length === 0) return found;
@@ -256,8 +239,7 @@ function scanHPFonts() {
 }
 
 // --- 5. Recursive Named Grid Scanner (Nested Groups: G1 -> VL, BB, HL -> H1..Hxx) ---
-function scanGridItems() {
-    var doc = getActiveDoc();
+function scanGridItems(doc) {
     if (!doc) return null;
     var result = {
         bb: null,
@@ -300,18 +282,18 @@ function scanGridItems() {
     return result;
 }
 
-// --- 6. ScriptUI Floating Palette (Non-modal with persistent engine) ---
-function buildHandwritingPalette() {
-    // Avoid duplicate windows
-    if (typeof $.global.vnHandwritingPalette !== 'undefined' && $.global.vnHandwritingPalette !== null) {
-        try {
-            $.global.vnHandwritingPalette.close();
-        } catch (e) {}
+// --- 6. Main Runner Dialog ---
+function runHandwritingTool() {
+    if (!app.documents || app.documents.length === 0) {
+        alert('Vui l\u00F2ng m\u1EDF t\u00E0i li\u1EC7u Illustrator c\u00F3 l\u01B0\u1EDBti tr\u01B0\u1EDBc khi ch\u1EA1y script!');
+        return;
     }
 
-    var win = new Window('palette', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment', undefined, { resizeable: true });
-    $.global.vnHandwritingPalette = win;
+    var doc = app.activeDocument;
+    var gridData = scanGridItems(doc);
 
+    // Modal dialog ensures synchronous execution with full document access
+    var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment');
     win.orientation = 'column';
     win.alignChildren = ['fill', 'top'];
     win.spacing = 8;
@@ -400,7 +382,7 @@ function buildHandwritingPalette() {
 
     var btnRescan = rGridStatus.add('button', undefined, 'Qu\u00E9t l\u1EA1i L\u01B0\u1EDBi (Re-scan)');
     btnRescan.preferredSize = [140, 24];
-    var lblGridInfo = rGridStatus.add('statictext', undefined, '\u0110ang qu\u00E9t named lines...');
+    var lblGridInfo = rGridStatus.add('statictext', undefined, '');
     lblGridInfo.preferredSize = [360, 20];
 
     var rGridPlacement = pGrid.add('group');
@@ -432,13 +414,10 @@ function buildHandwritingPalette() {
     var chkAutoFitBB = rGridOptions.add('checkbox', undefined, 'T\u1EF1 \u0111\u1ED9ng co gi\u00E3n v\u1EEBa khung BB (Auto-fit to BB)');
     chkAutoFitBB.value = true;
 
-    // Grid Scan State
-    var gridData = null;
-
     function refreshGridDisplay() {
-        gridData = scanGridItems();
+        gridData = scanGridItems(doc);
         if (!gridData) {
-            lblGridInfo.text = 'Ch\u01B0a m\u1EDF t\u00E0i li\u1EC7u Illustrator n\u00E0o!';
+            lblGridInfo.text = 'Kh\u00F4ng t\u00ECm th\u1EA5y th\u00F4ng tin l\u01B0\u1EDBi!';
             return;
         }
 
@@ -480,8 +459,8 @@ function buildHandwritingPalette() {
 
     refreshGridDisplay();
 
-    // --- Panel C: Stretch & Movement ---
-    var pStretch = win.add('panel', undefined, '3. Gi\u00E3n ch\u1EEF & D\u1ECBch chuy\u1EC3n (Stretch & Movement)');
+    // --- Panel C: Stretch Configuration ---
+    var pStretch = win.add('panel', undefined, '3. C\u1EA5u h\u00ECnh \u0110\u1ED9 gi\u00E3n ch\u1EEF (Horizontal Stretch)');
     pStretch.orientation = 'column';
     pStretch.alignChildren = ['fill', 'top'];
     pStretch.margins = 10;
@@ -504,12 +483,10 @@ function buildHandwritingPalette() {
     btn100.onClick = function () {
         txtStretch.text = '100';
         slStretch.value = 100;
-        applyStretchToSelection(100);
     };
     btn122.onClick = function () {
         txtStretch.text = '121.89';
         slStretch.value = 121.89;
-        applyStretchToSelection(121.89);
     };
 
     var slStretch = pStretch.add('slider', undefined, 121.89, 80, 200);
@@ -518,89 +495,7 @@ function buildHandwritingPalette() {
     };
     txtStretch.onChange = function () {
         var v = parseFloat(txtStretch.text);
-        if (!isNaN(v)) {
-            slStretch.value = v;
-            applyStretchToSelection(v);
-        }
-    };
-
-    var rNudge = pStretch.add('group');
-    rNudge.orientation = 'row';
-    rNudge.alignChildren = ['left', 'center'];
-    rNudge.spacing = 6;
-
-    rNudge.add('statictext', undefined, 'D\u1ECBch chuy\u1EC3n d\u00F2ng \u0111\u00E3 ch\u1ECDn:');
-    var btnNudgeL10 = rNudge.add('button', undefined, '<< -10pt');
-    var btnNudgeL1 = rNudge.add('button', undefined, '< -1pt');
-    var btnNudgeR1 = rNudge.add('button', undefined, '+1pt >');
-    var btnNudgeR10 = rNudge.add('button', undefined, '+10pt >>');
-
-    function nudgeSelection(deltaX) {
-        var doc = getActiveDoc();
-        if (!doc) return;
-        if (!doc.selection || doc.selection.length === 0) return;
-        for (var i = 0; i < doc.selection.length; i++) {
-            var item = doc.selection[i];
-            item.left += deltaX;
-        }
-        app.redraw();
-    }
-    btnNudgeL10.onClick = function () { nudgeSelection(-10); };
-    btnNudgeL1.onClick = function () { nudgeSelection(-1); };
-    btnNudgeR1.onClick = function () { nudgeSelection(1); };
-    btnNudgeR10.onClick = function () { nudgeSelection(10); };
-
-    function applyStretchToSelection(val) {
-        var doc = getActiveDoc();
-        if (!doc) return;
-        if (!doc.selection || doc.selection.length === 0) return;
-        for (var i = 0; i < doc.selection.length; i++) {
-            var it = doc.selection[i];
-            if (it.typename === 'TextFrame') {
-                it.textRange.characterAttributes.horizontalScale = val;
-            }
-        }
-        app.redraw();
-    }
-
-    var rStretchExtra = pStretch.add('group');
-    rStretchExtra.orientation = 'row';
-    rStretchExtra.spacing = 8;
-    var btnApplySelected = rStretchExtra.add('button', undefined, '\u00C1p d\u1EE5ng \u0110\u1ED9 gi\u00E3n cho ch\u1EEF \u0111\u0103ng ch\u1ECDn');
-    var btnFitSelectedToBB = rStretchExtra.add('button', undefined, 'Thu v\u1EEBa khung BB cho ch\u1EEF \u0111\u0103ng ch\u1ECDn');
-
-    btnApplySelected.onClick = function () {
-        var sVal = parseFloat(txtStretch.text) || 100;
-        applyStretchToSelection(sVal);
-    };
-
-    btnFitSelectedToBB.onClick = function () {
-        var doc = getActiveDoc();
-        if (!doc) return;
-        if (!doc.selection || doc.selection.length === 0) {
-            alert('Vui l\u00F2ng ch\u1ECDn \u0111\u1ED1i t\u01B0\u1EE3ng ch\u1EEF tr\u00EAn Artboard!');
-            return;
-        }
-        if (!gridData || !gridData.bb) {
-            alert('Kh\u00F4ng t\u00ECm th\u1EA5y \u0111\u1ED1i t\u01B0\u1EE3ng Bounding Box (BB) trong t\u00E0i li\u1EC7u!');
-            return;
-        }
-        var bbRight = gridData.bb.geometricBounds[2];
-        for (var i = 0; i < doc.selection.length; i++) {
-            var it = doc.selection[i];
-            if (it.typename === 'TextFrame') {
-                var itBounds = it.geometricBounds;
-                var itLeft = itBounds[0];
-                var curWidth = itBounds[2] - itBounds[0];
-                var availWidth = bbRight - itLeft;
-                if (curWidth > 0 && availWidth > 10) {
-                    var curScale = it.textRange.characterAttributes.horizontalScale || 100;
-                    var newScale = (availWidth / curWidth) * curScale;
-                    it.textRange.characterAttributes.horizontalScale = Math.round(newScale * 100) / 100;
-                }
-            }
-        }
-        app.redraw();
+        if (!isNaN(v)) slStretch.value = v;
     };
 
     // --- Panel D: Action Buttons ---
@@ -618,24 +513,12 @@ function buildHandwritingPalette() {
 
     btnInsert.onClick = function () {
         try {
-            var doc = getActiveDoc();
-            if (!doc) {
-                alert('Vui l\u00F2ng m\u1EDF ho\u1EB7c t\u1EA1o m\u1ED9t t\u00E0i li\u1EC7u Illustrator tr\u01B0\u1EDBc!');
-                return;
-            }
-
-            // Bring document to focus in Illustrator
-            try {
-                doc.activate();
-            } catch (eAct) {}
-
             var rawText = txtInput.text;
             if (!rawText || rawText.replace(/^\s+|\s+$/g, '') === '') {
                 alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
                 return;
             }
 
-            // Choose Font from dropdown or fallback
             var targetFont = null;
             if (hpFontList && hpFontList.length > 0 && ddFontSelect.selection) {
                 targetFont = hpFontList[ddFontSelect.selection.index].font;
@@ -646,13 +529,9 @@ function buildHandwritingPalette() {
             var indent = parseFloat(txtIndent.text) || 0;
             var baselineNudge = parseFloat(txtBaselineNudge.text) || 0;
 
-            // Determine starting line number from dropdown
             var selLineText = (ddTargetLine && ddTargetLine.selection) ? ddTargetLine.selection.text : 'H1';
             var lineMatch = selLineText.match(/^H(\d+)/i);
             var startLineNum = lineMatch ? parseInt(lineMatch[1], 10) : 1;
-
-            // Fresh scan to guarantee current state
-            gridData = scanGridItems();
 
             var bbLeft = 50;
             var bbRight = null;
@@ -674,10 +553,9 @@ function buildHandwritingPalette() {
 
                 // Find H line for Y baseline
                 var targetBaselineY = 0;
-                var hItem = null;
 
                 if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
-                    hItem = gridData.linesMap[currentLineNum];
+                    var hItem = gridData.linesMap[currentLineNum];
                     var gb = hItem.geometricBounds;
                     targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
                     if (!gridData.bb) {
@@ -699,7 +577,7 @@ function buildHandwritingPalette() {
 
                 var targetX = bbLeft + indent;
 
-                // Create text frame: pointText at target anchor
+                // 1. Create PointText at baseline coordinates
                 var tf = null;
                 try {
                     tf = doc.textFrames.pointText([targetX, targetBaselineY]);
@@ -709,15 +587,15 @@ function buildHandwritingPalette() {
                     tf.top = targetBaselineY;
                 }
 
-                // 1. MUST SET CONTENTS FIRST so textRange contains characters!
+                // 2. Set contents FIRST so textRange has characters
                 tf.contents = converted;
 
-                // 2. Set frame name
+                // 3. Name the text frame
                 try {
                     tf.name = 'Handwriting_H' + currentLineNum;
                 } catch (eNm) {}
 
-                // 3. Style textRange attributes
+                // 4. Style textRange attributes
                 if (tf.textRange) {
                     if (targetFont) {
                         try {
@@ -732,7 +610,7 @@ function buildHandwritingPalette() {
                     } catch (eSc) {}
                 }
 
-                // Auto-fit to BB Width if requested and text overflows BB
+                // 5. Auto-fit to BB Width if requested and text overflows BB
                 if (bbRight !== null && chkAutoFitBB.value) {
                     var tfBounds = tf.geometricBounds;
                     var curW = tfBounds[2] - tfBounds[0];
@@ -748,14 +626,14 @@ function buildHandwritingPalette() {
                 createdItems.push(tf);
             }
 
-            // Select newly created items so user can see selection handles immediately
+            // Select newly created items so user sees selection handles immediately
             doc.selection = null;
             for (var k = 0; k < createdItems.length; k++) {
                 createdItems[k].selected = true;
             }
 
-            // Force live canvas redraw
-            app.redraw();
+            // Close dialog cleanly so Illustrator repaints canvas instantly
+            win.close();
 
         } catch (err) {
             alert('L\u1ED7i ch\u00E8n ch\u1EEF: ' + err.message + ' (D\u00F2ng ' + (err.line || '') + ')');
@@ -766,8 +644,8 @@ function buildHandwritingPalette() {
     win.show();
 }
 
-// Run non-blocking palette
-buildHandwritingPalette();
+// Run tool
+runHandwritingTool();
 '''
 
 output = raw_jsx.replace('__EMBEDDED_GLYPH_DATA__', ascii_json)
