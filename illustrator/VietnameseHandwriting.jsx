@@ -219,13 +219,13 @@ function findHPFont(isBold) {
     return null;
 }
 
-// --- 5. ScriptUI Floating Palette ---
-function buildHandwritingPalette() {
-    var win = new Window('palette', 'Vietnamese Handwriting (HP001) - Adobe Illustrator', undefined, { resizeable: true });
+// --- 5. ScriptUI Dialog Window ---
+function buildHandwritingDialog() {
+    var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Adobe Illustrator');
     win.orientation = 'column';
     win.alignChildren = ['fill', 'top'];
     win.spacing = 8;
-    win.margins = 12;
+    win.margins = 14;
 
     // --- Panel A: Text Input ---
     var pText = win.add('panel', undefined, '1. Văn bản tiếng Việt (Text Input)');
@@ -235,7 +235,7 @@ function buildHandwritingPalette() {
     pText.spacing = 6;
 
     var txtInput = pText.add('edittext', undefined, 'Cộng hòa xã hội chủ nghĩa Việt Nam\nĐộc lập - Tự do - Hạnh phúc', { multiline: true, scrollable: true });
-    txtInput.preferredSize = [-1, 65];
+    txtInput.preferredSize = [420, 65];
 
     // Font Controls Row
     var rFont = pText.add('group');
@@ -276,8 +276,8 @@ function buildHandwritingPalette() {
     var rGridDetect = pGrid.add('group');
     rGridDetect.orientation = 'row';
     var btnDetect = rGridDetect.add('button', undefined, 'Nhận diện Lưới đang chọn (Detect Selected Grid)');
-    var lblGridStatus = rGridDetect.add('statictext', undefined, 'Chưa nhận diện lưới');
-    lblGridStatus.preferredSize = [180, 20];
+    var lblGridStatus = rGridDetect.add('statictext', undefined, 'Đang kiểm tra vùng chọn...');
+    lblGridStatus.preferredSize = [200, 20];
 
     var rGridCoords = pGrid.add('group');
     rGridCoords.orientation = 'row';
@@ -308,24 +308,35 @@ function buildHandwritingPalette() {
     var chkMultiLine = rFineTune.add('checkbox', undefined, 'Rải các dòng theo thứ tự (Multi-line cascade)');
     chkMultiLine.value = true;
 
-    // Grid Detect Click Handler
+    // Detected grid bounds state
     var detectedGridBounds = null;
-    btnDetect.onClick = function () {
+
+    function detectCurrentSelection() {
         if (!app.documents.length) {
-            alert('Vui lòng mở một tài liệu Illustrator!');
+            lblGridStatus.text = 'Chưa mở tài liệu nào';
             return;
         }
         var doc = app.activeDocument;
-        if (!doc.selection || doc.selection.length === 0) {
-            alert('Vui lòng dùng công cụ Selection Tool (V) bấm chọn nhóm lưới (2 grids merged group) trước, rồi bấm nút này!');
-            return;
+        if (doc.selection && doc.selection.length > 0) {
+            var sel = doc.selection[0];
+            detectedGridBounds = sel.geometricBounds; // [left, top, right, bottom]
+            var w = Math.round(detectedGridBounds[2] - detectedGridBounds[0]);
+            var h = Math.round(detectedGridBounds[1] - detectedGridBounds[3]);
+            lblGridStatus.text = 'Đã nhận: ' + w + 'x' + h + ' pt (X:' + Math.round(detectedGridBounds[0]) + ')';
+        } else {
+            lblGridStatus.text = 'Chưa chọn lưới (dùng thông số mặc định)';
         }
-        var sel = doc.selection[0];
-        detectedGridBounds = sel.geometricBounds; // [left, top, right, bottom]
-        var w = Math.round(detectedGridBounds[2] - detectedGridBounds[0]);
-        var h = Math.round(detectedGridBounds[1] - detectedGridBounds[3]);
-        lblGridStatus.text = 'Lưới: ' + w + 'x' + h + ' pt (X:' + Math.round(detectedGridBounds[0]) + ', Y:' + Math.round(detectedGridBounds[1]) + ')';
+    }
+
+    btnDetect.onClick = function () {
+        detectCurrentSelection();
+        if (!detectedGridBounds) {
+            alert('Mẹo: Trước khi mở script, hãy dùng công cụ Selection Tool (V) bấm chọn nhóm lưới (Grid Group) trên Artboard!');
+        }
     };
+
+    // Auto-detect on open if user already had grid selected
+    detectCurrentSelection();
 
     // --- Panel C: Stretch & Movement ---
     var pStretch = win.add('panel', undefined, '3. Giãn chữ & Dịch chuyển (Stretch & Movement)');
@@ -351,10 +362,12 @@ function buildHandwritingPalette() {
     btn100.onClick = function () {
         txtStretch.text = '100';
         slStretch.value = 100;
+        applyStretchToSelection(100);
     };
     btn122.onClick = function () {
         txtStretch.text = '121.89';
         slStretch.value = 121.89;
+        applyStretchToSelection(121.89);
     };
 
     var slStretch = pStretch.add('slider', undefined, 121.89, 80, 200);
@@ -363,7 +376,10 @@ function buildHandwritingPalette() {
     };
     txtStretch.onChange = function () {
         var v = parseFloat(txtStretch.text);
-        if (!isNaN(v)) slStretch.value = v;
+        if (!isNaN(v)) {
+            slStretch.value = v;
+            applyStretchToSelection(v);
+        }
     };
 
     var rNudge = pStretch.add('group');
@@ -385,27 +401,30 @@ function buildHandwritingPalette() {
             var item = doc.selection[i];
             item.left += deltaX;
         }
+        app.redraw();
     }
     btnNudgeL10.onClick = function () { nudgeSelection(-10); };
     btnNudgeL1.onClick = function () { nudgeSelection(-1); };
     btnNudgeR1.onClick = function () { nudgeSelection(1); };
     btnNudgeR10.onClick = function () { nudgeSelection(10); };
 
-    var btnApplySelected = pStretch.add('button', undefined, 'Áp dụng Độ giãn ngang cho chữ đang chọn');
-    btnApplySelected.onClick = function () {
+    function applyStretchToSelection(val) {
         if (!app.documents.length) return;
         var doc = app.activeDocument;
-        if (!doc.selection || doc.selection.length === 0) {
-            alert('Vui lòng chọn khối chữ trên Artboard!');
-            return;
-        }
-        var sVal = parseFloat(txtStretch.text) || 100;
+        if (!doc.selection || doc.selection.length === 0) return;
         for (var i = 0; i < doc.selection.length; i++) {
             var it = doc.selection[i];
             if (it.typename === 'TextFrame') {
-                it.textRange.characterAttributes.horizontalScale = sVal;
+                it.textRange.characterAttributes.horizontalScale = val;
             }
         }
+        app.redraw();
+    }
+
+    var btnApplySelected = pStretch.add('button', undefined, 'Áp dụng Độ giãn ngang cho chữ đang chọn');
+    btnApplySelected.onClick = function () {
+        var sVal = parseFloat(txtStretch.text) || 100;
+        applyStretchToSelection(sVal);
     };
 
     // --- Panel D: Action Buttons ---
@@ -414,9 +433,9 @@ function buildHandwritingPalette() {
     rAction.alignment = 'right';
     rAction.spacing = 10;
 
-    var btnInsert = rAction.add('button', undefined, 'Chèn Chữ vào Lưới (Insert to Grid)', { name: 'ok' });
-    btnInsert.preferredSize = [180, 28];
-    var btnClose = rAction.add('button', undefined, 'Đóng (Close)', { name: 'cancel' });
+    var btnInsert = rAction.add('button', undefined, 'Chèn Chữ vào Lưới (Insert to Grid)');
+    btnInsert.preferredSize = [190, 30];
+    var btnClose = rAction.add('button', undefined, 'Đóng (Close)');
 
     btnClose.onClick = function () { win.close(); };
 
@@ -468,7 +487,7 @@ function buildHandwritingPalette() {
 
             // Baseline Y coordinate calculation
             // In Illustrator: Top edge of line is (originY - lineIndex * lineStep).
-            // Baseline is near the bottom guideline of the ô ly box.
+            // Baseline sits on the bottom guideline of the grid line.
             var targetBaselineY = originY - (lineIndex * lineStep) - lineStep + baselineNudge;
             var targetX = originX + indent;
 
@@ -488,16 +507,19 @@ function buildHandwritingPalette() {
             createdItems.push(tf);
         }
 
-        // Select the newly created text frames for immediate editing/nudging
+        // Select the newly created text frames so user can see them and adjust stretch/nudge immediately
         doc.selection = null;
         for (var k = 0; k < createdItems.length; k++) {
             createdItems[k].selected = true;
         }
+
+        // Force Illustrator canvas redraw so changes appear live behind the dialog
+        app.redraw();
     };
 
     win.center();
     win.show();
 }
 
-// Run palette
-buildHandwritingPalette();
+// Run dialog
+buildHandwritingDialog();
