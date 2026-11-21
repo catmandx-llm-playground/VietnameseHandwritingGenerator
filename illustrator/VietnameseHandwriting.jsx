@@ -5,6 +5,7 @@
  * Features:
  * - Direct Vietnamese handwriting glyph conversion (HP001 ligatures)
  * - Deep recursive scanning of nested groups: G1 -> (VL, BB, HL -> H1, H2.. Hxx)
+ * - Safe getActiveDoc() to prevent focus-loss errors in floating palette
  * - Exact PointText placement on H baseline & inside BB
  * - Non-blocking floating palette with live instant canvas updates
  * - Horizontal stretching (custom & 121.89% optimal cursive standard)
@@ -213,7 +214,22 @@ function convertLine(text) {
     return out;
 }
 
-// --- 4. Illustrator Typography & Font Helpers ---
+// --- 4. Document & Typography Helpers ---
+function getActiveDoc() {
+    if (!app.documents || app.documents.length === 0) {
+        return null;
+    }
+    try {
+        return app.activeDocument;
+    } catch (eActive) {
+        try {
+            return app.documents[0];
+        } catch (eIndex) {
+            return null;
+        }
+    }
+}
+
 function scanHPFonts() {
     var found = [];
     if (!app.textFonts || app.textFonts.length === 0) return found;
@@ -234,8 +250,8 @@ function scanHPFonts() {
 
 // --- 5. Recursive Named Grid Scanner (Nested Groups: G1 -> VL, BB, HL -> H1..Hxx) ---
 function scanGridItems() {
-    if (!app.documents.length) return null;
-    var doc = app.activeDocument;
+    var doc = getActiveDoc();
+    if (!doc) return null;
     var result = {
         bb: null,
         linesMap: {},
@@ -268,7 +284,7 @@ function scanGridItems() {
         }
     }
 
-    // Traverse all top-level layers and items
+    // Traverse all items in document
     for (var i = 0; i < doc.pageItems.length; i++) {
         inspectItem(doc.pageItems[i]);
     }
@@ -513,8 +529,8 @@ function buildHandwritingPalette() {
     var btnNudgeR10 = rNudge.add('button', undefined, '+10pt >>');
 
     function nudgeSelection(deltaX) {
-        if (!app.documents.length) return;
-        var doc = app.activeDocument;
+        var doc = getActiveDoc();
+        if (!doc) return;
         if (!doc.selection || doc.selection.length === 0) return;
         for (var i = 0; i < doc.selection.length; i++) {
             var item = doc.selection[i];
@@ -528,8 +544,8 @@ function buildHandwritingPalette() {
     btnNudgeR10.onClick = function () { nudgeSelection(10); };
 
     function applyStretchToSelection(val) {
-        if (!app.documents.length) return;
-        var doc = app.activeDocument;
+        var doc = getActiveDoc();
+        if (!doc) return;
         if (!doc.selection || doc.selection.length === 0) return;
         for (var i = 0; i < doc.selection.length; i++) {
             var it = doc.selection[i];
@@ -552,8 +568,8 @@ function buildHandwritingPalette() {
     };
 
     btnFitSelectedToBB.onClick = function () {
-        if (!app.documents.length) return;
-        var doc = app.activeDocument;
+        var doc = getActiveDoc();
+        if (!doc) return;
         if (!doc.selection || doc.selection.length === 0) {
             alert('Vui l\u00F2ng ch\u1ECDn \u0111\u1ED1i t\u01B0\u1EE3ng ch\u1EEF tr\u00EAn Artboard!');
             return;
@@ -595,17 +611,22 @@ function buildHandwritingPalette() {
 
     btnInsert.onClick = function () {
         try {
-            if (!app.documents.length) {
+            var doc = getActiveDoc();
+            if (!doc) {
                 alert('Vui l\u00F2ng m\u1EDF ho\u1EB7c t\u1EA1o m\u1ED9t t\u00E0i li\u1EC7u Illustrator tr\u01B0\u1EDBc!');
                 return;
             }
+
+            // Bring document to focus in Illustrator
+            try {
+                doc.activate();
+            } catch (eAct) {}
+
             var rawText = txtInput.text;
             if (!rawText || rawText.replace(/^\s+|\s+$/g, '') === '') {
                 alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
                 return;
             }
-
-            var doc = app.activeDocument;
 
             // Choose Font from dropdown or fallback
             var targetFont = null;
