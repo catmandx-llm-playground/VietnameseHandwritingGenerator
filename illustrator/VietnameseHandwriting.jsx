@@ -594,146 +594,144 @@ function buildHandwritingPalette() {
     btnClose.onClick = function () { win.close(); };
 
     btnInsert.onClick = function () {
-        if (!app.documents.length) {
-            alert('Vui l\u00F2ng m\u1EDF ho\u1EB7c t\u1EA1o m\u1ED9t t\u00E0i li\u1EC7u Illustrator tr\u01B0\u1EDBc!');
-            return;
-        }
-        var rawText = txtInput.text;
-        if (!rawText || rawText.replace(/^\s+|\s+$/g, '') === '') {
-            alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
-            return;
-        }
+        try {
+            if (!app.documents.length) {
+                alert('Vui l\u00F2ng m\u1EDF ho\u1EB7c t\u1EA1o m\u1ED9t t\u00E0i li\u1EC7u Illustrator tr\u01B0\u1EDBc!');
+                return;
+            }
+            var rawText = txtInput.text;
+            if (!rawText || rawText.replace(/^\s+|\s+$/g, '') === '') {
+                alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
+                return;
+            }
 
-        var doc = app.activeDocument;
+            var doc = app.activeDocument;
 
-        // Choose Font from dropdown or fallback
-        var targetFont = null;
-        if (hpFontList.length > 0 && ddFontSelect.selection) {
-            targetFont = hpFontList[ddFontSelect.selection.index].font;
-        }
+            // Choose Font from dropdown or fallback
+            var targetFont = null;
+            if (hpFontList && hpFontList.length > 0 && ddFontSelect.selection) {
+                targetFont = hpFontList[ddFontSelect.selection.index].font;
+            }
 
-        var fontSize = parseFloat(txtCustomSize.text) || 37;
-        var stretchVal = parseFloat(txtStretch.text) || 100;
-        var indent = parseFloat(txtIndent.text) || 0;
-        var baselineNudge = parseFloat(txtBaselineNudge.text) || 0;
+            var fontSize = parseFloat(txtCustomSize.text) || 37;
+            var stretchVal = parseFloat(txtStretch.text) || 100;
+            var indent = parseFloat(txtIndent.text) || 0;
+            var baselineNudge = parseFloat(txtBaselineNudge.text) || 0;
 
-        // Determine starting line number from dropdown
-        var selLineText = ddTargetLine.selection ? ddTargetLine.selection.text : 'H1';
-        var lineMatch = selLineText.match(/^H(\d+)/i);
-        var startLineNum = lineMatch ? parseInt(lineMatch[1], 10) : 1;
+            // Determine starting line number from dropdown
+            var selLineText = (ddTargetLine && ddTargetLine.selection) ? ddTargetLine.selection.text : 'H1';
+            var lineMatch = selLineText.match(/^H(\d+)/i);
+            var startLineNum = lineMatch ? parseInt(lineMatch[1], 10) : 1;
 
-        // Determine BB Bounds and Left Anchor
-        var bbLeft = 50;
-        var bbRight = null;
-        if (gridData && gridData.bb) {
-            var bbb = gridData.bb.geometricBounds;
-            bbLeft = bbb[0];
-            bbRight = bbb[2];
-        }
+            // Fresh scan to guarantee current state
+            gridData = scanGridItems();
 
-        var lines = rawText.split(/\r?\n/);
-        var createdItems = [];
+            var bbLeft = 50;
+            var bbRight = null;
+            if (gridData && gridData.bb) {
+                var bbb = gridData.bb.geometricBounds;
+                bbLeft = bbb[0];
+                bbRight = bbb[2];
+            }
 
-        for (var l = 0; l < lines.length; l++) {
-            var lineStr = lines[l];
-            if (lineStr.replace(/^\s+|\s+$/g, '') === '') continue;
+            var lines = rawText.split(/\r?\n/);
+            var createdItems = [];
 
-            var converted = convertLine(lineStr);
-            var currentLineNum = chkMultiLine.value ? (startLineNum + l) : startLineNum;
+            for (var l = 0; l < lines.length; l++) {
+                var lineStr = lines[l];
+                if (lineStr.replace(/^\s+|\s+$/g, '') === '') continue;
 
-            // Find H line for Y baseline
-            var targetBaselineY = 0;
-            var hItem = null;
+                var converted = convertLine(lineStr);
+                var currentLineNum = chkMultiLine.value ? (startLineNum + l) : startLineNum;
 
-            if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
-                hItem = gridData.linesMap[currentLineNum];
-                var gb = hItem.geometricBounds; // [left, top, right, bottom] in global document coords
-                targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
-                if (!gridData.bb) {
-                    bbLeft = gb[0];
-                    bbRight = gb[2];
+                // Find H line for Y baseline
+                var targetBaselineY = 0;
+                var hItem = null;
+
+                if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
+                    hItem = gridData.linesMap[currentLineNum];
+                    var gb = hItem.geometricBounds;
+                    targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
+                    if (!gridData.bb) {
+                        bbLeft = gb[0];
+                        bbRight = gb[2];
+                    }
+                } else if (gridData && gridData.lineNumbers && gridData.lineNumbers.length >= 2) {
+                    var nums = gridData.lineNumbers;
+                    var lastN = nums[nums.length - 1];
+                    var prevN = nums[nums.length - 2];
+                    var lastY = (gridData.linesMap[lastN].geometricBounds[1] + gridData.linesMap[lastN].geometricBounds[3]) / 2;
+                    var prevY = (gridData.linesMap[prevN].geometricBounds[1] + gridData.linesMap[prevN].geometricBounds[3]) / 2;
+                    var stepY = (lastY - prevY) / (lastN - prevN);
+                    targetBaselineY = lastY + stepY * (currentLineNum - lastN) + baselineNudge;
+                } else {
+                    var abRect = (doc.artboards && doc.artboards.length > 0) ? doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect : [0, 0, 800, -600];
+                    targetBaselineY = abRect[1] - 100 - (l * 76.8) + baselineNudge;
                 }
-            } else if (gridData && gridData.lineNumbers && gridData.lineNumbers.length >= 2) {
-                var nums = gridData.lineNumbers;
-                var lastN = nums[nums.length - 1];
-                var prevN = nums[nums.length - 2];
-                var lastY = (gridData.linesMap[lastN].geometricBounds[1] + gridData.linesMap[lastN].geometricBounds[3]) / 2;
-                var prevY = (gridData.linesMap[prevN].geometricBounds[1] + gridData.linesMap[prevN].geometricBounds[3]) / 2;
-                var stepY = (lastY - prevY) / (lastN - prevN);
-                targetBaselineY = lastY + stepY * (currentLineNum - lastN) + baselineNudge;
-            } else {
-                var fallbackOriginY = (doc.artboards && doc.artboards.length > 0) ? (doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect[1] - 100) : 500;
-                targetBaselineY = fallbackOriginY - (l * 76.8) + baselineNudge;
-            }
 
-            var targetX = bbLeft + indent;
+                var targetX = bbLeft + indent;
 
-            // Target container layer (same layer as grid or active layer)
-            var targetContainer = doc.activeLayer;
-            if (hItem && hItem.layer && !hItem.layer.locked && hItem.layer.visible) {
-                targetContainer = hItem.layer;
-            } else if (gridData && gridData.bb && gridData.bb.layer && !gridData.bb.layer.locked && gridData.bb.layer.visible) {
-                targetContainer = gridData.bb.layer;
-            }
-
-            // Create PointText at the exact anchor coordinates
-            var tf = null;
-            try {
-                tf = targetContainer.textFrames.pointText([targetX, targetBaselineY]);
-            } catch (e1) {
+                // Create text frame: pointText at target anchor
+                var tf = null;
                 try {
                     tf = doc.textFrames.pointText([targetX, targetBaselineY]);
-                } catch (e2) {
-                    tf = targetContainer.textFrames.add();
+                } catch (ePt) {
+                    tf = doc.textFrames.add();
                     tf.left = targetX;
                     tf.top = targetBaselineY;
                 }
-            }
 
-            tf.name = 'Handwriting_H' + currentLineNum;
+                // 1. MUST SET CONTENTS FIRST so textRange contains characters!
+                tf.contents = converted;
 
-            if (targetFont) {
+                // 2. Set frame name
                 try {
-                    tf.textRange.characterAttributes.textFont = targetFont;
-                } catch (e) {}
-            }
-            tf.textRange.characterAttributes.size = fontSize;
-            tf.textRange.characterAttributes.horizontalScale = stretchVal;
+                    tf.name = 'Handwriting_H' + currentLineNum;
+                } catch (eNm) {}
 
-            tf.contents = converted;
-
-            if (targetFont) {
-                try {
-                    tf.textRange.characterAttributes.textFont = targetFont;
-                } catch (e) {}
-            }
-
-            // Verify position: Ensure tf is firmly placed at targetX and sits on targetBaselineY
-            tf.left = targetX;
-
-            // Auto-fit to BB Width if requested and text overflows BB
-            if (bbRight !== null && chkAutoFitBB.value) {
-                var tfBounds = tf.geometricBounds;
-                var curW = tfBounds[2] - tfBounds[0];
-                var maxW = bbRight - targetX;
-                if (maxW > 10 && curW > maxW) {
-                    var fitScale = (maxW / curW) * stretchVal;
-                    tf.textRange.characterAttributes.horizontalScale = Math.round(fitScale * 100) / 100;
-                    tf.left = targetX;
+                // 3. Style textRange attributes
+                if (tf.textRange) {
+                    if (targetFont) {
+                        try {
+                            tf.textRange.characterAttributes.textFont = targetFont;
+                        } catch (eF) {}
+                    }
+                    try {
+                        tf.textRange.characterAttributes.size = fontSize;
+                    } catch (eS) {}
+                    try {
+                        tf.textRange.characterAttributes.horizontalScale = stretchVal;
+                    } catch (eSc) {}
                 }
+
+                // Auto-fit to BB Width if requested and text overflows BB
+                if (bbRight !== null && chkAutoFitBB.value) {
+                    var tfBounds = tf.geometricBounds;
+                    var curW = tfBounds[2] - tfBounds[0];
+                    var maxW = bbRight - targetX;
+                    if (maxW > 10 && curW > maxW) {
+                        var fitScale = (maxW / curW) * stretchVal;
+                        try {
+                            tf.textRange.characterAttributes.horizontalScale = Math.round(fitScale * 100) / 100;
+                        } catch (eFit) {}
+                    }
+                }
+
+                createdItems.push(tf);
             }
 
-            createdItems.push(tf);
-        }
+            // Select newly created items so user can see selection handles immediately
+            doc.selection = null;
+            for (var k = 0; k < createdItems.length; k++) {
+                createdItems[k].selected = true;
+            }
 
-        // Select the newly created text frames so user can see handles immediately
-        doc.selection = null;
-        for (var k = 0; k < createdItems.length; k++) {
-            createdItems[k].selected = true;
-        }
+            // Force live canvas redraw
+            app.redraw();
 
-        // Force immediate artboard render without closing palette
-        app.redraw();
+        } catch (err) {
+            alert('L\u1ED7i ch\u00E8n ch\u1EEF: ' + err.message + ' (D\u00F2ng ' + (err.line || '') + ')');
+        }
     };
 
     win.center();
