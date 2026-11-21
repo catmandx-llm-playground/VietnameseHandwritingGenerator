@@ -4,66 +4,39 @@ Kịch bản mở rộng (**Adobe Illustrator ExtendScript `.jsx`**) giúp soạ
 
 ---
 
-## 1. Tính năng chính (Key Features)
+## 1. Cơ chế Căn Lưới Thông Minh (Named Lines `H1..Hxx` & Bounding Box `BB`)
 
-1. **Bộ chuyển đổi chữ viết tay (Vietnamese Handwriting Engine)**:
-   - Tự động nhận diện phụ âm ghép (`kh`, `nh`, `ch`, `gh`, `ph`, `th`, `Gh`) và vần đặc biệt (`ooc`, `oon`).
-   - Phân tích thanh điệu (huyền, sắc, hỏi, ngã, nặng) và tra cứu các ký tự nối nét (ligatures) chuẩn ngữ cảnh từ cơ sở dữ liệu `all.json` nhúng sẵn.
-   - Hỗ trợ cả 2 biến thể: **HP001 Normal** và **HP001 Bold**.
+Thay vì phải đoán bước dòng hay căn chỉnh thủ công, script hỗ trợ **tự động bắt dính chính xác 100%** theo các đường kẻ và khung viền đã đặt tên trong file Illustrator của bạn:
 
-2. **Tương thích & Bắt dính Ô Ly (Grid Detection & Line Snapping)**:
-   - Hỗ trợ nhóm lưới gộp 2 bảng ô ly: Chỉ cần dùng công cụ Chọn (`V`) bấm chọn nhóm lưới, sau đó bấm **"Nhận diện Lưới đang chọn (Detect Selected Grid)"**.
-   - Tự động lấy tọa độ góc $X, Y$ và kích thước để đặt chữ chuẩn xác.
-   - Chọn dòng muốn đặt chữ (Dòng 1, 2, 3...) kèm tính năng rải nhiều dòng tự động theo thứ tự.
-   - Tinh chỉnh khoảng cách lùi đầu dòng (**Indent**) và độ lệch đường kẻ nét viết (**Baseline Nudge**).
+1. **Đường kẻ dòng (`H1`, `H2`, `H3`, ... `Hxx`)**:
+   - Mỗi đường kẻ ngang cơ sở (baseline) của dòng chỉ cần đặt tên trong bảng Layers là `H1`, `H2`, `H3`, v.v.
+   - Script tự động đọc tọa độ trục $Y$ chính xác ở giữa nét vẽ của đường kẻ và đặt chân chữ (baseline) nằm chuẩn xác tuyệt đối trên đường kẻ đó.
+   - **Rải nhiều dòng tự động**: Nếu văn bản có 3 dòng và bạn chọn bắt đầu từ `H1`, dòng 1 sẽ vào `H1`, dòng 2 vào `H2`, dòng 3 vào `H3`.
 
-3. **Kéo giãn & Di chuyển dọc theo dòng (Stretch & Movement)**:
-   - Tùy chỉnh độ giãn ngang (**Horizontal Scale %**) với nút bấm sẵn chuẩn tiểu học **121.89%** (tối ưu nét nối giữa các con chữ) hoặc 100%.
-   - Thanh trượt và các nút bấm dịch chuyển nhanh dọc theo dòng kẻ: `<< -10pt`, `< -1pt`, `+1pt >`, `+10pt >>`.
-   - Có thể chọn bất kỳ khối chữ nào trên artboard và bấm nút áp dụng lại độ giãn hoặc dịch chuyển tức thì.
+2. **Khung bao giới hạn (`BB`)**:
+   - Đối tượng khung viền lưới đặt tên là `BB` (Bounding Box).
+   - Chữ sẽ tự động lấy điểm bắt đầu từ **mép trái của BB** cộng thêm khoảng lùi đầu dòng (**Indent**).
+   - **Tự động ép vừa khung BB (Auto-fit to BB)**: Nếu một câu quá dài vượt quá mép phải của `BB`, script sẽ tự động tính toán và điều chỉnh tỷ lệ giãn ngang (`horizontalScale`) vừa khít với chiều rộng của `BB` mà không bị tràn ra ngoài.
 
 ---
 
-## 2. Chuẩn bị Font chữ (Prerequisites)
+## 2. Tính năng chính (Key Features)
 
-Để Illustrator hiển thị đúng các nét nối và không bị lỗi phông, hãy cài đặt các phông chữ HP001 có sẵn trong thư mục `static/font/`:
-- `static/font/HP001N30.ttf` (HP001 Normal 3.0)
-- `static/font/HP001B30.ttf` (HP001 Bold 3.0)
-
-*(Trên Windows: Nhấp chuột phải vào file `.ttf` $\rightarrow$ Chọn **Install for all users**. Trên macOS: Mở file bằng **Font Book** $\rightarrow$ Bấm **Install Font**).*
+* **Bộ chuyển đổi chữ viết tay tiểu học**:
+  Tự động ghép phụ âm ghép (`kh`, `nh`, `ch`, `gh`, `ph`, `th`, `Gh`), vần đặc biệt (`ooc`, `oon`) và dấu thanh sang các ký tự nối nét mở rộng trong font **HP001 Normal** và **HP001 Bold**.
+* **Giao diện Modal Dialog không bao giờ biến mất**:
+  Cửa sổ luôn mở cho tới khi bạn bấm **Đóng (Close)**, kết hợp lệnh `app.redraw()` cập nhật trực tiếp thay đổi trên Artboard trong thời gian thực.
+* **Kéo giãn & Di chuyển dọc theo dòng**:
+  - Tùy chỉnh độ giãn ngang (**Horizontal Scale %**) với nút chuẩn tiểu học **121.89%** (tối ưu nét nối giữa các con chữ) hoặc 100%.
+  - Các nút bấm dịch chuyển nhanh dọc theo đường kẻ: `<< -10pt`, `< -1pt`, `+1pt >`, `+10pt >>`.
+  - Nút **"Thu vừa khung BB cho chữ đang chọn"** để ép các khối chữ có sẵn vừa vặn với `BB`.
 
 ---
 
-## 3. Cách cài đặt & Chạy script trong Adobe Illustrator
+## 3. Cách chạy trong Adobe Illustrator
 
-### Cách 1: Chạy trực tiếp (Không cần cài đặt)
-1. Mở file thiết kế của bạn trong Adobe Illustrator.
-2. Vào menu: **File $\rightarrow$ Scripts $\rightarrow$ Other Script...** (hoặc phím tắt `Ctrl + F12` trên Windows / `Cmd + F12` trên macOS).
+1. Mở file Illustrator chứa lưới có các đường kẻ đặt tên `H1`, `H2`... và khung `BB`.
+2. Vào menu: **File $\rightarrow$ Scripts $\rightarrow$ Other Script...** (`Ctrl + F12` trên Windows / `Cmd + F12` trên Mac).
 3. Chọn file [VietnameseHandwriting.jsx](file:///root/projects/handwriting/illustrator/VietnameseHandwriting.jsx).
-
-### Cách 2: Cài đặt vĩnh viễn vào menu Illustrator
-Sao chép file `VietnameseHandwriting.jsx` vào thư mục Scripts của Illustrator:
-- **Windows (64-bit)**:
-  `C:\Program Files\Adobe\Adobe Illustrator [Năm]\Presets\[Ngôn ngữ]\Scripts\`
-- **macOS**:
-  `/Applications/Adobe Illustrator [Năm]/Presets/[Ngôn ngữ]/Scripts/`
-
-*Khởi động lại Illustrator, script sẽ xuất hiện tại menu **File $\rightarrow$ Scripts $\rightarrow$ VietnameseHandwriting**.*
-
----
-
-## 4. Hướng dẫn sử dụng nhanh
-
-1. **Nhận diện lưới**:
-   - Dùng chuột chọn nhóm lưới (2 grids merged group) trên màn hình.
-   - Mở bảng script, bấm nút **"Nhận diện Lưới đang chọn (Detect Selected Grid)"**.
-2. **Nhập văn bản**:
-   - Gõ hoặc dán đoạn văn bản tiếng Việt vào ô nhập liệu.
-   - Chọn cỡ chữ (37 pt cho ô ly nhỏ, 72 pt cho ô ly lớn, hoặc tùy chỉnh).
-   - Chọn dòng cần bắt đầu đặt chữ.
-3. **Chèn chữ**:
-   - Bấm nút **"Chèn Chữ vào Lưới (Insert to Grid)"**.
-   - Chữ sẽ được tự động chuyển thành ký tự nối nét và nằm ngay ngắn trên dòng kẻ bạn chọn.
-4. **Giãn chữ & Tinh chỉnh vị trí**:
-   - Dùng thanh trượt **Độ giãn ngang** để giãn/thu hẹp chữ.
-   - Dùng các nút `+1pt / -1pt` để dịch chuyển chữ dọc theo dòng kẻ, hoặc kéo tự do bằng công cụ `V` (giữ phím `Shift` để khóa trục ngang).
+4. Cửa sổ script sẽ mở ra và tự động hiển thị: `✓ [BB: ...x...pt] Tìm thấy N dòng (H1 -> H{N})`.
+5. Nhập văn bản, chọn dòng bắt đầu (H1, H2...), rồi bấm **"Chèn Chữ vào Lưới (Insert to Grid)"**.

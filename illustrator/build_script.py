@@ -10,10 +10,10 @@ jsx_template = r'''#target illustrator
  * Vietnamese Handwriting Generator for Adobe Illustrator (HP001 Font)
  * Features:
  * - Direct Vietnamese handwriting glyph conversion (HP001 ligatures)
- * - Automatic grid detection (snapping to existing grid groups)
- * - Placement onto specified line numbers
- * - Horizontal stretching (custom & 121.89% standard)
- * - Live line nudging & movement
+ * - Automatic named line matching (H1, H2, ... Hxx) and Bounding Box (BB) alignment
+ * - Automatic containment inside BB (with optional Auto-Fit to BB width)
+ * - Horizontal stretching (custom & 121.89% optimal cursive standard)
+ * - Live line nudging & movement with instant app.redraw()
  */
 
 // --- 1. Polyfills for ExtendScript (ES3) ---
@@ -226,9 +226,46 @@ function findHPFont(isBold) {
     return null;
 }
 
-// --- 5. ScriptUI Dialog Window ---
+// --- 5. Named Grid Scanner (Lines H1..Hxx and Bounding Box BB) ---
+function scanGridItems() {
+    if (!app.documents.length) return null;
+    var doc = app.activeDocument;
+    var bbItem = null;
+    var hLinesMap = {};
+    var lineNumbers = [];
+
+    // Search all pageItems in document
+    for (var i = 0; i < doc.pageItems.length; i++) {
+        var it = doc.pageItems[i];
+        var nm = it.name ? it.name.replace(/^\s+|\s+$/g, '') : '';
+        if (!nm) continue;
+
+        if (/^(BB|BOUNDING[\s_-]?BOX)$/i.test(nm)) {
+            bbItem = it;
+        } else {
+            var m = nm.match(/^H[\s_-]?(\d+)$/i);
+            if (m) {
+                var num = parseInt(m[1], 10);
+                if (!hLinesMap[num]) {
+                    hLinesMap[num] = it;
+                    lineNumbers.push(num);
+                }
+            }
+        }
+    }
+
+    lineNumbers.sort(function (a, b) { return a - b; });
+
+    return {
+        bb: bbItem,
+        linesMap: hLinesMap,
+        lineNumbers: lineNumbers
+    };
+}
+
+// --- 6. ScriptUI Dialog Window ---
 function buildHandwritingDialog() {
-    var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Adobe Illustrator');
+    var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment');
     win.orientation = 'column';
     win.alignChildren = ['fill', 'top'];
     win.spacing = 8;
@@ -242,7 +279,7 @@ function buildHandwritingDialog() {
     pText.spacing = 6;
 
     var txtInput = pText.add('edittext', undefined, 'Cộng hòa xã hội chủ nghĩa Việt Nam\nĐộc lập - Tự do - Hạnh phúc', { multiline: true, scrollable: true });
-    txtInput.preferredSize = [420, 65];
+    txtInput.preferredSize = [440, 65];
 
     // Font Controls Row
     var rFont = pText.add('group');
@@ -250,7 +287,7 @@ function buildHandwritingDialog() {
     rFont.alignChildren = ['left', 'center'];
     rFont.spacing = 10;
 
-    rFont.add('statictext', undefined, 'Cỡ chữ (Size):');
+    rFont.add('statictext', undefined, 'Cỡ chữ:');
     var ddFontSize = rFont.add('dropdownlist', undefined, ['37 pt (1 ô ly chuẩn)', '72 pt (2 ô ly lớn)', 'Tùy chỉnh (Custom)']);
     ddFontSize.selection = 0;
 
@@ -270,80 +307,102 @@ function buildHandwritingDialog() {
         }
     };
 
-    var chkBold = rFont.add('checkbox', undefined, 'Đậm (Bold)');
+    var chkBold = rFont.add('checkbox', undefined, 'Chữ đậm (Bold)');
     chkBold.value = false;
 
-    // --- Panel B: Grid Placement ---
-    var pGrid = win.add('panel', undefined, '2. Tọa độ & Bố cục Ô Ly (Grid Placement)');
+    // --- Panel B: Named Grid Placement (H1..Hxx & BB) ---
+    var pGrid = win.add('panel', undefined, '2. Căn theo Đường kẻ (H1..Hxx) & Khung Bounding Box (BB)');
     pGrid.orientation = 'column';
     pGrid.alignChildren = ['fill', 'top'];
     pGrid.margins = 10;
     pGrid.spacing = 6;
 
-    var rGridDetect = pGrid.add('group');
-    rGridDetect.orientation = 'row';
-    var btnDetect = rGridDetect.add('button', undefined, 'Nhận diện Lưới đang chọn (Detect Selected Grid)');
-    var lblGridStatus = rGridDetect.add('statictext', undefined, 'Đang kiểm tra vùng chọn...');
-    lblGridStatus.preferredSize = [200, 20];
+    var rGridStatus = pGrid.add('group');
+    rGridStatus.orientation = 'row';
+    rGridStatus.alignChildren = ['left', 'center'];
 
-    var rGridCoords = pGrid.add('group');
-    rGridCoords.orientation = 'row';
-    rGridCoords.alignChildren = ['left', 'center'];
-    rGridCoords.spacing = 8;
+    var btnRescan = rGridStatus.add('button', undefined, 'Quét lại Lưới (Re-scan)');
+    var lblGridInfo = rGridStatus.add('statictext', undefined, 'Đang quét named lines...');
+    lblGridInfo.preferredSize = [320, 20];
 
-    rGridCoords.add('statictext', undefined, 'Bắt đầu từ Dòng:');
-    var txtLineNum = rGridCoords.add('edittext', undefined, '1');
-    txtLineNum.preferredSize = [35, 22];
+    var rGridPlacement = pGrid.add('group');
+    rGridPlacement.orientation = 'row';
+    rGridPlacement.alignChildren = ['left', 'center'];
+    rGridPlacement.spacing = 8;
 
-    rGridCoords.add('statictext', undefined, 'Bước dòng (Step pt):');
-    var txtLineStep = rGridCoords.add('edittext', undefined, '76.8');
-    txtLineStep.preferredSize = [50, 22];
+    rGridPlacement.add('statictext', undefined, 'Bắt đầu từ Dòng:');
+    var ddTargetLine = rGridPlacement.add('dropdownlist', undefined, ['H1']);
+    ddTargetLine.preferredSize = [80, 22];
+    ddTargetLine.selection = 0;
 
-    rGridCoords.add('statictext', undefined, 'Lùi dòng (Indent pt):');
-    var txtIndent = rGridCoords.add('edittext', undefined, '19.2');
+    rGridPlacement.add('statictext', undefined, 'Lùi lề trái BB (Indent pt):');
+    var txtIndent = rGridPlacement.add('edittext', undefined, '0');
     txtIndent.preferredSize = [45, 22];
 
-    var rFineTune = pGrid.add('group');
-    rFineTune.orientation = 'row';
-    rFineTune.alignChildren = ['left', 'center'];
-    rFineTune.spacing = 8;
+    rGridPlacement.add('statictext', undefined, 'Lệch Baseline (pt):');
+    var txtBaselineNudge = rGridPlacement.add('edittext', undefined, '0');
+    txtBaselineNudge.preferredSize = [35, 22];
 
-    rFineTune.add('statictext', undefined, 'Căn chỉnh Baseline (Nudge pt):');
-    var txtBaselineNudge = rFineTune.add('edittext', undefined, '0');
-    txtBaselineNudge.preferredSize = [40, 22];
+    var rGridOptions = pGrid.add('group');
+    rGridOptions.orientation = 'row';
+    rGridOptions.alignChildren = ['left', 'center'];
+    rGridOptions.spacing = 10;
 
-    var chkMultiLine = rFineTune.add('checkbox', undefined, 'Rải các dòng theo thứ tự (Multi-line cascade)');
+    var chkMultiLine = rGridOptions.add('checkbox', undefined, 'Rải nhiều dòng theo thứ tự H1, H2, H3...');
     chkMultiLine.value = true;
 
-    // Detected grid bounds state
-    var detectedGridBounds = null;
+    var chkAutoFitBB = rGridOptions.add('checkbox', undefined, 'Tự động co giãn vừa khung BB (Auto-fit to BB)');
+    chkAutoFitBB.value = true;
 
-    function detectCurrentSelection() {
-        if (!app.documents.length) {
-            lblGridStatus.text = 'Chưa mở tài liệu nào';
+    // Grid Scan State
+    var gridData = null;
+
+    function refreshGridDisplay() {
+        gridData = scanGridItems();
+        if (!gridData) {
+            lblGridInfo.text = 'Chưa mở tài liệu Illustrator nào!';
             return;
         }
-        var doc = app.activeDocument;
-        if (doc.selection && doc.selection.length > 0) {
-            var sel = doc.selection[0];
-            detectedGridBounds = sel.geometricBounds; // [left, top, right, bottom]
-            var w = Math.round(detectedGridBounds[2] - detectedGridBounds[0]);
-            var h = Math.round(detectedGridBounds[1] - detectedGridBounds[3]);
-            lblGridStatus.text = 'Đã nhận: ' + w + 'x' + h + ' pt (X:' + Math.round(detectedGridBounds[0]) + ')';
+
+        var lineCount = gridData.lineNumbers.length;
+        var hasBB = !!gridData.bb;
+
+        var statusText = '';
+        if (hasBB) {
+            var bbB = gridData.bb.geometricBounds;
+            var bbW = Math.round(bbB[2] - bbB[0]);
+            var bbH = Math.round(bbB[1] - bbB[3]);
+            statusText += '[BB: ' + bbW + 'x' + bbH + 'pt] ';
         } else {
-            lblGridStatus.text = 'Chưa chọn lưới (dùng thông số mặc định)';
+            statusText += '[Chưa có BB] ';
+        }
+
+        if (lineCount > 0) {
+            statusText += 'Tìm thấy ' + lineCount + ' dòng (H' + gridData.lineNumbers[0] + ' -> H' + gridData.lineNumbers[lineCount - 1] + ')';
+        } else {
+            statusText += 'Không tìm thấy dòng H1..Hxx!';
+        }
+        lblGridInfo.text = statusText;
+
+        // Re-populate dropdown
+        ddTargetLine.removeAll();
+        if (lineCount > 0) {
+            for (var i = 0; i < lineCount; i++) {
+                ddTargetLine.add('item', 'H' + gridData.lineNumbers[i]);
+            }
+            ddTargetLine.selection = 0;
+        } else {
+            ddTargetLine.add('item', 'H1 (mặc định)');
+            ddTargetLine.selection = 0;
         }
     }
 
-    btnDetect.onClick = function () {
-        detectCurrentSelection();
-        if (!detectedGridBounds) {
-            alert('Mẹo: Trước khi mở script, hãy dùng công cụ Selection Tool (V) bấm chọn nhóm lưới (Grid Group) trên Artboard!');
-        }
+    btnRescan.onClick = function () {
+        refreshGridDisplay();
     };
 
-    // Auto-detect on open if user already had grid selected
-    detectCurrentSelection();
+    // Initial scan on dialog open
+    refreshGridDisplay();
 
     // --- Panel C: Stretch & Movement ---
     var pStretch = win.add('panel', undefined, '3. Giãn chữ & Dịch chuyển (Stretch & Movement)');
@@ -428,10 +487,43 @@ function buildHandwritingDialog() {
         app.redraw();
     }
 
-    var btnApplySelected = pStretch.add('button', undefined, 'Áp dụng Độ giãn ngang cho chữ đang chọn');
+    var rStretchExtra = pStretch.add('group');
+    rStretchExtra.orientation = 'row';
+    var btnApplySelected = rStretchExtra.add('button', undefined, 'Áp dụng Độ giãn cho chữ đang chọn');
+    var btnFitSelectedToBB = rStretchExtra.add('button', undefined, 'Thu vừa khung BB cho chữ đang chọn');
+
     btnApplySelected.onClick = function () {
         var sVal = parseFloat(txtStretch.text) || 100;
         applyStretchToSelection(sVal);
+    };
+
+    btnFitSelectedToBB.onClick = function () {
+        if (!app.documents.length) return;
+        var doc = app.activeDocument;
+        if (!doc.selection || doc.selection.length === 0) {
+            alert('Vui lòng chọn đối tượng chữ trên Artboard!');
+            return;
+        }
+        if (!gridData || !gridData.bb) {
+            alert('Không tìm thấy đối tượng Bounding Box (BB) trong tài liệu!');
+            return;
+        }
+        var bbRight = gridData.bb.geometricBounds[2];
+        for (var i = 0; i < doc.selection.length; i++) {
+            var it = doc.selection[i];
+            if (it.typename === 'TextFrame') {
+                var itBounds = it.geometricBounds;
+                var itLeft = itBounds[0];
+                var curWidth = itBounds[2] - itBounds[0];
+                var availWidth = bbRight - itLeft;
+                if (curWidth > 0 && availWidth > 10) {
+                    var curScale = it.textRange.characterAttributes.horizontalScale || 100;
+                    var newScale = (availWidth / curWidth) * curScale;
+                    it.textRange.characterAttributes.horizontalScale = Math.round(newScale * 100) / 100;
+                }
+            }
+        }
+        app.redraw();
     };
 
     // --- Panel D: Action Buttons ---
@@ -465,21 +557,21 @@ function buildHandwritingDialog() {
 
         var fontSize = parseFloat(txtCustomSize.text) || 37;
         var stretchVal = parseFloat(txtStretch.text) || 100;
-        var startLine = parseInt(txtLineNum.text, 10) || 1;
-        var lineStep = parseFloat(txtLineStep.text) || 76.8;
-        var indent = parseFloat(txtIndent.text) || 19.2;
+        var indent = parseFloat(txtIndent.text) || 0;
         var baselineNudge = parseFloat(txtBaselineNudge.text) || 0;
 
-        // Base coordinates origin
-        var originX = 50;
-        var originY = -50;
-        if (detectedGridBounds) {
-            originX = detectedGridBounds[0];
-            originY = detectedGridBounds[1];
-        } else if (doc.artboards && doc.artboards.length > 0) {
-            var abRect = doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect;
-            originX = abRect[0] + 50;
-            originY = abRect[1] - 50;
+        // Determine starting line number from dropdown
+        var selLineText = ddTargetLine.selection ? ddTargetLine.selection.text : 'H1';
+        var lineMatch = selLineText.match(/^H(\d+)/i);
+        var startLineNum = lineMatch ? parseInt(lineMatch[1], 10) : 1;
+
+        // Determine BB Bounds and Left Anchor
+        var bbLeft = 50;
+        var bbRight = null;
+        if (gridData && gridData.bb) {
+            var bbb = gridData.bb.geometricBounds;
+            bbLeft = bbb[0];
+            bbRight = bbb[2];
         }
 
         var lines = rawText.split(/\r?\n/);
@@ -490,16 +582,42 @@ function buildHandwritingDialog() {
             if (lineStr.replace(/^\s+|\s+$/g, '') === '') continue;
 
             var converted = convertLine(lineStr);
-            var lineIndex = chkMultiLine.value ? (startLine - 1 + l) : (startLine - 1);
+            var currentLineNum = chkMultiLine.value ? (startLineNum + l) : startLineNum;
 
-            // Baseline Y coordinate calculation
-            // In Illustrator: Top edge of line is (originY - lineIndex * lineStep).
-            // Baseline sits on the bottom guideline of the grid line.
-            var targetBaselineY = originY - (lineIndex * lineStep) - lineStep + baselineNudge;
-            var targetX = originX + indent;
+            // Find H line for Y baseline
+            var targetBaselineY = 0;
+            var hasDirectHLine = false;
+
+            if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
+                var hItem = gridData.linesMap[currentLineNum];
+                var gb = hItem.geometricBounds; // [left, top, right, bottom]
+                // Stroke centerline is baseline
+                targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
+                hasDirectHLine = true;
+                if (!gridData.bb) {
+                    bbLeft = gb[0];
+                    bbRight = gb[2];
+                }
+            } else if (gridData && gridData.lineNumbers && gridData.lineNumbers.length >= 2) {
+                // Extrapolate spacing from available H lines
+                var nums = gridData.lineNumbers;
+                var lastN = nums[nums.length - 1];
+                var prevN = nums[nums.length - 2];
+                var lastY = (gridData.linesMap[lastN].geometricBounds[1] + gridData.linesMap[lastN].geometricBounds[3]) / 2;
+                var prevY = (gridData.linesMap[prevN].geometricBounds[1] + gridData.linesMap[prevN].geometricBounds[3]) / 2;
+                var stepY = (lastY - prevY) / (lastN - prevN);
+                targetBaselineY = lastY + stepY * (currentLineNum - lastN) + baselineNudge;
+            } else {
+                // Fallback standard 76.8pt step
+                var fallbackOriginY = (doc.artboards && doc.artboards.length > 0) ? (doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect[1] - 100) : 500;
+                targetBaselineY = fallbackOriginY - (l * 76.8) + baselineNudge;
+            }
+
+            var targetX = bbLeft + indent;
 
             var tf = doc.textFrames.add();
             tf.contents = converted;
+            tf.name = 'Handwriting_H' + currentLineNum;
 
             if (font) {
                 try {
@@ -509,8 +627,20 @@ function buildHandwritingDialog() {
             tf.textRange.characterAttributes.size = fontSize;
             tf.textRange.characterAttributes.horizontalScale = stretchVal;
 
-            // Anchor point in point text sets baseline position
+            // PointText anchor anchors baseline Y and left X
             tf.anchor = [targetX, targetBaselineY];
+
+            // Auto-fit to BB Width if requested and text overflows BB
+            if (bbRight !== null && chkAutoFitBB.value) {
+                var tfBounds = tf.geometricBounds;
+                var curW = tfBounds[2] - tfBounds[0];
+                var maxW = bbRight - targetX;
+                if (maxW > 10 && curW > maxW) {
+                    var fitScale = (maxW / curW) * stretchVal;
+                    tf.textRange.characterAttributes.horizontalScale = Math.round(fitScale * 100) / 100;
+                }
+            }
+
             createdItems.push(tf);
         }
 
@@ -520,7 +650,7 @@ function buildHandwritingDialog() {
             createdItems[k].selected = true;
         }
 
-        // Force Illustrator canvas redraw so changes appear live behind the dialog
+        // Force Illustrator canvas redraw
         app.redraw();
     };
 
