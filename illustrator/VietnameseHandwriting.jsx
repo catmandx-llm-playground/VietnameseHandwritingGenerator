@@ -37,15 +37,15 @@ function isLetter(c) {
     return /^[a-zA-Z\u00C0-\u024F\u1EA0-\u1EF9]+$/i.test(c);
 }
 
-function getAccent(char) {
-    if (!char) return 'level';
-    char = char.toLowerCase();
-    if (/ooc/.test(char)) return 'level';
-    if (/oon/.test(char)) return 'level';
-    if (/o\u00F2n/.test(char)) return 'lower';
-    if (/o\u00F3n/.test(char)) return 'acute';
-    if (/o\u00F3c/.test(char)) return 'acute';
-    if (/o\u1ECDc/.test(char)) return 'heavy';
+function getAccent(ch) {
+    if (!ch) return 'level';
+    ch = ch.toLowerCase();
+    if (/ooc/.test(ch)) return 'level';
+    if (/oon/.test(ch)) return 'level';
+    if (/o\u00F2n/.test(ch)) return 'lower';
+    if (/o\u00F3n/.test(ch)) return 'acute';
+    if (/o\u00F3c/.test(ch)) return 'acute';
+    if (/o\u1ECDc/.test(ch)) return 'heavy';
 
     var accentList = {
         'acute': '\u00E1\u1EAF\u1EA5\u00F3\u1ED1\u1EDB\u00E9\u1EBF\u00ED\u00FA\u1EE9\u00FD',
@@ -56,7 +56,7 @@ function getAccent(char) {
     };
     for (var acc in accentList) {
         var re = new RegExp('[' + accentList[acc] + ']');
-        if (re.test(char)) return acc;
+        if (re.test(ch)) return acc;
     }
     return 'level';
 }
@@ -117,12 +117,12 @@ function removeAccents(str) {
     return str;
 }
 
-function getGlyph(base, previous, char, next) {
-    var isUpper = isUpperCase(char);
-    var accent = getAccent(char);
-    if (!GLYPH_DATA || !GLYPH_DATA[base]) return char;
+function getGlyph(base, previous, ch, next) {
+    var isUpper = isUpperCase(ch);
+    var accent = getAccent(ch);
+    if (!GLYPH_DATA || !GLYPH_DATA[base]) return ch;
     var currentSet = GLYPH_DATA[base].types;
-    if (!currentSet) return char;
+    if (!currentSet) return ch;
     for (var i = 0; i < currentSet.length; i++) {
         var type = currentSet[i];
         if (type.prev.indexOf(previous) !== -1 && type.next.indexOf(next) !== -1 && type.isCap === isUpper) {
@@ -138,7 +138,7 @@ function getGlyph(base, previous, char, next) {
             }
         }
     }
-    return char;
+    return ch;
 }
 
 function getUnicodeStr(word) {
