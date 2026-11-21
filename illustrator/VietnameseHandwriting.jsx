@@ -1,4 +1,4 @@
-#target illustrator
+﻿#target illustrator
 /**
  * Vietnamese Handwriting Generator for Adobe Illustrator (HP001 Font)
  * Features:
@@ -7,6 +7,7 @@
  * - Automatic containment inside BB (with optional Auto-Fit to BB width)
  * - Horizontal stretching (custom & 121.89% optimal cursive standard)
  * - Live line nudging & movement with instant app.redraw()
+ * - Full Unicode escaping & font dropdown for Windows English Illustrator
  */
 
 // --- 1. Polyfills for ExtendScript (ES3) ---
@@ -40,6 +41,7 @@ function isLetter(c) {
 function getAccent(ch) {
     if (!ch) return 'level';
     ch = ch.toLowerCase();
+    // Special diphthong cases
     if (/ooc/.test(ch)) return 'level';
     if (/oon/.test(ch)) return 'level';
     if (/o\u00F2n/.test(ch)) return 'lower';
@@ -47,6 +49,14 @@ function getAccent(ch) {
     if (/o\u00F3c/.test(ch)) return 'acute';
     if (/o\u1ECDc/.test(ch)) return 'heavy';
 
+    // Combining diacritical marks (Unicode T\u1ed5 h\u1ee3p from Unikey/EVKey)
+    if (/[\u0301]/.test(ch)) return 'acute';
+    if (/[\u0300]/.test(ch)) return 'lower';
+    if (/[\u0309]/.test(ch)) return 'rising';
+    if (/[\u0303]/.test(ch)) return 'raised';
+    if (/[\u0323]/.test(ch)) return 'heavy';
+
+    // Precomposed Unicode (Unicode D\u1ef1ng s\u1eb5n)
     var accentList = {
         'acute': '\u00E1\u1EAF\u1EA5\u00F3\u1ED1\u1EDB\u00E9\u1EBF\u00ED\u00FA\u1EE9\u00FD',
         'lower': '\u00E0\u1EB1\u1EA7\u00F2\u1ED3\u1EDD\u00E8\u1EC1\u00EC\u00F9\u1EEB\u1EF3',
@@ -82,6 +92,9 @@ function isUpperCase(str) {
 }
 
 function removeAccents(str) {
+    // Strip combining marks
+    str = str.replace(/[\u0300\u0301\u0303\u0309\u0323]/g, '');
+
     var AccentsMap = [
         'a\u00E0\u1EA3\u00E3\u00E1\u1EA1',
         '\u0103\u1EB1\u1EB3\u1EB5\u1EAF\u1EB7',
@@ -201,22 +214,22 @@ function convertLine(text) {
 }
 
 // --- 4. Illustrator Typography & Font Helpers ---
-function findHPFont(isBold) {
-    if (!app.textFonts || app.textFonts.length === 0) return null;
+function scanHPFonts() {
+    var found = [];
+    if (!app.textFonts || app.textFonts.length === 0) return found;
     for (var i = 0; i < app.textFonts.length; i++) {
         var f = app.textFonts[i];
-        var name = (f.name || '') + ' ' + (f.family || '') + ' ' + (f.style || '');
-        if (name.indexOf('HP001') !== -1) {
-            if (isBold && (name.indexOf('Bold') !== -1 || name.indexOf('B30') !== -1)) return f;
-            if (!isBold && (name.indexOf('Normal') !== -1 || name.indexOf('Regular') !== -1 || name.indexOf('N30') !== -1)) return f;
+        var fullName = (f.name || '') + ' ' + (f.family || '') + ' ' + (f.style || '');
+        if (fullName.toUpperCase().indexOf('HP001') !== -1) {
+            var isBold = (fullName.toUpperCase().indexOf('BOLD') !== -1 || fullName.toUpperCase().indexOf('B30') !== -1);
+            found.push({
+                font: f,
+                displayName: f.name + ' (' + (f.style || (isBold ? 'Bold' : 'Normal')) + ')',
+                isBold: isBold
+            });
         }
     }
-    for (var j = 0; j < app.textFonts.length; j++) {
-        if ((app.textFonts[j].name || '').indexOf('HP001') !== -1 || (app.textFonts[j].family || '').indexOf('HP001') !== -1) {
-            return app.textFonts[j];
-        }
-    }
-    return null;
+    return found;
 }
 
 // --- 5. Named Grid Scanner (Lines H1..Hxx and Bounding Box BB) ---
@@ -227,7 +240,6 @@ function scanGridItems() {
     var hLinesMap = {};
     var lineNumbers = [];
 
-    // Search all pageItems in document
     for (var i = 0; i < doc.pageItems.length; i++) {
         var it = doc.pageItems[i];
         var nm = it.name ? it.name.replace(/^\s+|\s+$/g, '') : '';
@@ -265,27 +277,34 @@ function buildHandwritingDialog() {
     win.margins = 14;
 
     // --- Panel A: Text Input ---
-    var pText = win.add('panel', undefined, '1. Văn bản tiếng Việt (Text Input)');
+    var pText = win.add('panel', undefined, '1. V\u0103n b\u1EA3n ti\u1EBFng Vi\u1EC7t (Text Input)');
     pText.orientation = 'column';
     pText.alignChildren = ['fill', 'top'];
     pText.margins = 10;
     pText.spacing = 6;
 
-    var txtInput = pText.add('edittext', undefined, 'Cộng hòa xã hội chủ nghĩa Việt Nam\nĐộc lập - Tự do - Hạnh phúc', { multiline: true, scrollable: true });
-    txtInput.preferredSize = [440, 65];
+    var defaultVietnameseText = 'C\u1ED9ng h\u00F2a x\u00E3 h\u1ED9i ch\u1EE7 ngh\u0129a Vi\u1EC7t Nam\n\u0110\u1ED9c l\u1EADp - T\u1EF1 do - H\u1EA1nh ph\u00FAc';
+    var txtInput = pText.add('edittext', undefined, defaultVietnameseText, { multiline: true, scrollable: true });
+    txtInput.preferredSize = [520, 70];
 
     // Font Controls Row
     var rFont = pText.add('group');
     rFont.orientation = 'row';
     rFont.alignChildren = ['left', 'center'];
-    rFont.spacing = 10;
+    rFont.spacing = 8;
 
-    rFont.add('statictext', undefined, 'Cỡ chữ:');
-    var ddFontSize = rFont.add('dropdownlist', undefined, ['37 pt (1 ô ly chuẩn)', '72 pt (2 ô ly lớn)', 'Tùy chỉnh (Custom)']);
+    rFont.add('statictext', undefined, 'Ph\u00F4ng ch\u1EEF (Font):');
+    var ddFontSelect = rFont.add('dropdownlist', undefined, ['[T\u1EF1 \u0111\u1ED9ng t\u00ECm HP001]']);
+    ddFontSelect.preferredSize = [180, 22];
+    ddFontSelect.selection = 0;
+
+    rFont.add('statictext', undefined, 'C\u1EE1:');
+    var ddFontSize = rFont.add('dropdownlist', undefined, ['37 pt (1 \u00F4 ly)', '72 pt (2 \u00F4 ly)', 'T\u00F9y ch\u1EC9nh']);
+    ddFontSize.preferredSize = [110, 22];
     ddFontSize.selection = 0;
 
     var txtCustomSize = rFont.add('edittext', undefined, '37');
-    txtCustomSize.preferredSize = [45, 22];
+    txtCustomSize.preferredSize = [42, 22];
     txtCustomSize.visible = false;
 
     ddFontSize.onChange = function () {
@@ -300,11 +319,35 @@ function buildHandwritingDialog() {
         }
     };
 
-    var chkBold = rFont.add('checkbox', undefined, 'Chữ đậm (Bold)');
+    var chkBold = rFont.add('checkbox', undefined, '\u0110\u1EADm (Bold)');
     chkBold.value = false;
 
+    // Scan installed HP001 fonts
+    var hpFontList = scanHPFonts();
+    if (hpFontList.length > 0) {
+        ddFontSelect.removeAll();
+        for (var fIdx = 0; fIdx < hpFontList.length; fIdx++) {
+            ddFontSelect.add('item', hpFontList[fIdx].displayName);
+        }
+        ddFontSelect.selection = 0;
+    }
+
+    chkBold.onClick = function () {
+        if (hpFontList.length > 1) {
+            for (var k = 0; k < hpFontList.length; k++) {
+                if (chkBold.value && hpFontList[k].isBold) {
+                    ddFontSelect.selection = k;
+                    break;
+                } else if (!chkBold.value && !hpFontList[k].isBold) {
+                    ddFontSelect.selection = k;
+                    break;
+                }
+            }
+        }
+    };
+
     // --- Panel B: Named Grid Placement (H1..Hxx & BB) ---
-    var pGrid = win.add('panel', undefined, '2. Căn theo Đường kẻ (H1..Hxx) & Khung Bounding Box (BB)');
+    var pGrid = win.add('panel', undefined, '2. C\u0103n theo \u0110\u01B0\u1EDDng k\u1EBB (H1..Hxx) & Khung Bounding Box (BB)');
     pGrid.orientation = 'column';
     pGrid.alignChildren = ['fill', 'top'];
     pGrid.margins = 10;
@@ -313,26 +356,28 @@ function buildHandwritingDialog() {
     var rGridStatus = pGrid.add('group');
     rGridStatus.orientation = 'row';
     rGridStatus.alignChildren = ['left', 'center'];
+    rGridStatus.spacing = 8;
 
-    var btnRescan = rGridStatus.add('button', undefined, 'Quét lại Lưới (Re-scan)');
-    var lblGridInfo = rGridStatus.add('statictext', undefined, 'Đang quét named lines...');
-    lblGridInfo.preferredSize = [320, 20];
+    var btnRescan = rGridStatus.add('button', undefined, 'Qu\u00E9t l\u1EA1i L\u01B0\u1EDBi (Re-scan)');
+    btnRescan.preferredSize = [140, 24];
+    var lblGridInfo = rGridStatus.add('statictext', undefined, '\u0110ang qu\u00E9t named lines...');
+    lblGridInfo.preferredSize = [360, 20];
 
     var rGridPlacement = pGrid.add('group');
     rGridPlacement.orientation = 'row';
     rGridPlacement.alignChildren = ['left', 'center'];
     rGridPlacement.spacing = 8;
 
-    rGridPlacement.add('statictext', undefined, 'Bắt đầu từ Dòng:');
+    rGridPlacement.add('statictext', undefined, 'B\u1EAFt \u0111\u1EA7u t\u1EEB D\u00F2ng:');
     var ddTargetLine = rGridPlacement.add('dropdownlist', undefined, ['H1']);
     ddTargetLine.preferredSize = [80, 22];
     ddTargetLine.selection = 0;
 
-    rGridPlacement.add('statictext', undefined, 'Lùi lề trái BB (Indent pt):');
+    rGridPlacement.add('statictext', undefined, 'L\u00F9i l\u1EC1 tr\u00E1i BB (Indent pt):');
     var txtIndent = rGridPlacement.add('edittext', undefined, '0');
     txtIndent.preferredSize = [45, 22];
 
-    rGridPlacement.add('statictext', undefined, 'Lệch Baseline (pt):');
+    rGridPlacement.add('statictext', undefined, 'L\u1EC7ch Baseline (pt):');
     var txtBaselineNudge = rGridPlacement.add('edittext', undefined, '0');
     txtBaselineNudge.preferredSize = [35, 22];
 
@@ -341,10 +386,10 @@ function buildHandwritingDialog() {
     rGridOptions.alignChildren = ['left', 'center'];
     rGridOptions.spacing = 10;
 
-    var chkMultiLine = rGridOptions.add('checkbox', undefined, 'Rải nhiều dòng theo thứ tự H1, H2, H3...');
+    var chkMultiLine = rGridOptions.add('checkbox', undefined, 'R\u1EA3i nhi\u1EC1u d\u00F2ng theo th\u1EE9 t\u1EF1 H1, H2, H3...');
     chkMultiLine.value = true;
 
-    var chkAutoFitBB = rGridOptions.add('checkbox', undefined, 'Tự động co giãn vừa khung BB (Auto-fit to BB)');
+    var chkAutoFitBB = rGridOptions.add('checkbox', undefined, 'T\u1EF1 \u0111\u1ED9ng co gi\u00E3n v\u1EEBa khung BB (Auto-fit to BB)');
     chkAutoFitBB.value = true;
 
     // Grid Scan State
@@ -353,7 +398,7 @@ function buildHandwritingDialog() {
     function refreshGridDisplay() {
         gridData = scanGridItems();
         if (!gridData) {
-            lblGridInfo.text = 'Chưa mở tài liệu Illustrator nào!';
+            lblGridInfo.text = 'Ch\u01B0a m\u1EDF t\u00E0i li\u1EC7u Illustrator n\u00E0o!';
             return;
         }
 
@@ -367,17 +412,16 @@ function buildHandwritingDialog() {
             var bbH = Math.round(bbB[1] - bbB[3]);
             statusText += '[BB: ' + bbW + 'x' + bbH + 'pt] ';
         } else {
-            statusText += '[Chưa có BB] ';
+            statusText += '[Ch\u01B0a c\u00F3 BB] ';
         }
 
         if (lineCount > 0) {
-            statusText += 'Tìm thấy ' + lineCount + ' dòng (H' + gridData.lineNumbers[0] + ' -> H' + gridData.lineNumbers[lineCount - 1] + ')';
+            statusText += 'T\u00ECm th\u1EA5y ' + lineCount + ' d\u00F2ng (H' + gridData.lineNumbers[0] + ' -> H' + gridData.lineNumbers[lineCount - 1] + ')';
         } else {
-            statusText += 'Không tìm thấy dòng H1..Hxx!';
+            statusText += 'Kh\u00F4ng t\u00ECm th\u1EA5y d\u00F2ng H1..Hxx!';
         }
         lblGridInfo.text = statusText;
 
-        // Re-populate dropdown
         ddTargetLine.removeAll();
         if (lineCount > 0) {
             for (var i = 0; i < lineCount; i++) {
@@ -385,7 +429,7 @@ function buildHandwritingDialog() {
             }
             ddTargetLine.selection = 0;
         } else {
-            ddTargetLine.add('item', 'H1 (mặc định)');
+            ddTargetLine.add('item', 'H1 (m\u1EB7c \u0111\u1ECBnh)');
             ddTargetLine.selection = 0;
         }
     }
@@ -398,7 +442,7 @@ function buildHandwritingDialog() {
     refreshGridDisplay();
 
     // --- Panel C: Stretch & Movement ---
-    var pStretch = win.add('panel', undefined, '3. Giãn chữ & Dịch chuyển (Stretch & Movement)');
+    var pStretch = win.add('panel', undefined, '3. Gi\u00E3n ch\u1EEF & D\u1ECBch chuy\u1EC3n (Stretch & Movement)');
     pStretch.orientation = 'column';
     pStretch.alignChildren = ['fill', 'top'];
     pStretch.margins = 10;
@@ -409,13 +453,13 @@ function buildHandwritingDialog() {
     rScale.alignChildren = ['left', 'center'];
     rScale.spacing = 8;
 
-    rScale.add('statictext', undefined, 'Độ giãn ngang (% Horizontal Scale):');
+    rScale.add('statictext', undefined, '\u0110\u1ED9 gi\u00E3n ngang (% Horizontal Scale):');
     var txtStretch = rScale.add('edittext', undefined, '121.89');
     txtStretch.preferredSize = [55, 22];
 
     var btn100 = rScale.add('button', undefined, '100%');
     btn100.preferredSize = [45, 22];
-    var btn122 = rScale.add('button', undefined, '121.89% (Chuẩn)');
+    var btn122 = rScale.add('button', undefined, '121.89% (Chu\u1EA9n)');
     btn122.preferredSize = [105, 22];
 
     btn100.onClick = function () {
@@ -446,7 +490,7 @@ function buildHandwritingDialog() {
     rNudge.alignChildren = ['left', 'center'];
     rNudge.spacing = 6;
 
-    rNudge.add('statictext', undefined, 'Dịch chuyển dòng đã chọn:');
+    rNudge.add('statictext', undefined, 'D\u1ECBch chuy\u1EC3n d\u00F2ng \u0111\u00E3 ch\u1ECDn:');
     var btnNudgeL10 = rNudge.add('button', undefined, '<< -10pt');
     var btnNudgeL1 = rNudge.add('button', undefined, '< -1pt');
     var btnNudgeR1 = rNudge.add('button', undefined, '+1pt >');
@@ -482,8 +526,9 @@ function buildHandwritingDialog() {
 
     var rStretchExtra = pStretch.add('group');
     rStretchExtra.orientation = 'row';
-    var btnApplySelected = rStretchExtra.add('button', undefined, 'Áp dụng Độ giãn cho chữ đang chọn');
-    var btnFitSelectedToBB = rStretchExtra.add('button', undefined, 'Thu vừa khung BB cho chữ đang chọn');
+    rStretchExtra.spacing = 8;
+    var btnApplySelected = rStretchExtra.add('button', undefined, '\u00C1p d\u1EE5ng \u0110\u1ED9 gi\u00E3n cho ch\u1EEF \u0111\u0103ng ch\u1ECDn');
+    var btnFitSelectedToBB = rStretchExtra.add('button', undefined, 'Thu v\u1EEBa khung BB cho ch\u1EEF \u0111\u0103ng ch\u1ECDn');
 
     btnApplySelected.onClick = function () {
         var sVal = parseFloat(txtStretch.text) || 100;
@@ -494,11 +539,11 @@ function buildHandwritingDialog() {
         if (!app.documents.length) return;
         var doc = app.activeDocument;
         if (!doc.selection || doc.selection.length === 0) {
-            alert('Vui lòng chọn đối tượng chữ trên Artboard!');
+            alert('Vui l\u00F2ng ch\u1ECDn \u0111\u1ED1i t\u01B0\u1EE3ng ch\u1EEF tr\u00EAn Artboard!');
             return;
         }
         if (!gridData || !gridData.bb) {
-            alert('Không tìm thấy đối tượng Bounding Box (BB) trong tài liệu!');
+            alert('Kh\u00F4ng t\u00ECm th\u1EA5y \u0111\u1ED1i t\u01B0\u1EE3ng Bounding Box (BB) trong t\u00E0i li\u1EC7u!');
             return;
         }
         var bbRight = gridData.bb.geometricBounds[2];
@@ -525,27 +570,30 @@ function buildHandwritingDialog() {
     rAction.alignment = 'right';
     rAction.spacing = 10;
 
-    var btnInsert = rAction.add('button', undefined, 'Chèn Chữ vào Lưới (Insert to Grid)');
-    btnInsert.preferredSize = [190, 30];
-    var btnClose = rAction.add('button', undefined, 'Đóng (Close)');
+    var btnInsert = rAction.add('button', undefined, 'Ch\u00E8n Ch\u1EEF v\u00E0o L\u01B0\u1EDBi (Insert to Grid)');
+    btnInsert.preferredSize = [230, 32];
+    var btnClose = rAction.add('button', undefined, '\u0110\u00F3ng (Close)');
+    btnClose.preferredSize = [100, 32];
 
     btnClose.onClick = function () { win.close(); };
 
     btnInsert.onClick = function () {
         if (!app.documents.length) {
-            alert('Vui lòng mở hoặc tạo một tài liệu Illustrator trước!');
+            alert('Vui l\u00F2ng m\u1EDF ho\u1EB7c t\u1EA1o m\u1ED9t t\u00E0i li\u1EC7u Illustrator tr\u01B0\u1EDBc!');
             return;
         }
         var rawText = txtInput.text;
         if (!rawText || rawText.replace(/^\s+|\s+$/g, '') === '') {
-            alert('Vui lòng nhập nội dung văn bản!');
+            alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
             return;
         }
 
         var doc = app.activeDocument;
-        var font = findHPFont(chkBold.value);
-        if (!font) {
-            alert('Lưu ý: Không tìm thấy Font HP001 trong hệ thống (HP001 Normal/Bold). Chữ sẽ tạo bằng font mặc định; hãy gán font HP001 sau khi cài font vào máy.');
+
+        // Choose Font from dropdown or fallback
+        var targetFont = null;
+        if (hpFontList.length > 0 && ddFontSelect.selection) {
+            targetFont = hpFontList[ddFontSelect.selection.index].font;
         }
 
         var fontSize = parseFloat(txtCustomSize.text) || 37;
@@ -579,20 +627,16 @@ function buildHandwritingDialog() {
 
             // Find H line for Y baseline
             var targetBaselineY = 0;
-            var hasDirectHLine = false;
 
             if (gridData && gridData.linesMap && gridData.linesMap[currentLineNum]) {
                 var hItem = gridData.linesMap[currentLineNum];
                 var gb = hItem.geometricBounds; // [left, top, right, bottom]
-                // Stroke centerline is baseline
                 targetBaselineY = (gb[1] + gb[3]) / 2 + baselineNudge;
-                hasDirectHLine = true;
                 if (!gridData.bb) {
                     bbLeft = gb[0];
                     bbRight = gb[2];
                 }
             } else if (gridData && gridData.lineNumbers && gridData.lineNumbers.length >= 2) {
-                // Extrapolate spacing from available H lines
                 var nums = gridData.lineNumbers;
                 var lastN = nums[nums.length - 1];
                 var prevN = nums[nums.length - 2];
@@ -601,7 +645,6 @@ function buildHandwritingDialog() {
                 var stepY = (lastY - prevY) / (lastN - prevN);
                 targetBaselineY = lastY + stepY * (currentLineNum - lastN) + baselineNudge;
             } else {
-                // Fallback standard 76.8pt step
                 var fallbackOriginY = (doc.artboards && doc.artboards.length > 0) ? (doc.artboards[doc.artboards.getActiveArtboardIndex()].artboardRect[1] - 100) : 500;
                 targetBaselineY = fallbackOriginY - (l * 76.8) + baselineNudge;
             }
@@ -609,18 +652,25 @@ function buildHandwritingDialog() {
             var targetX = bbLeft + indent;
 
             var tf = doc.textFrames.add();
-            tf.contents = converted;
             tf.name = 'Handwriting_H' + currentLineNum;
 
-            if (font) {
+            if (targetFont) {
                 try {
-                    tf.textRange.characterAttributes.textFont = font;
+                    tf.textRange.characterAttributes.textFont = targetFont;
                 } catch (e) {}
             }
             tf.textRange.characterAttributes.size = fontSize;
             tf.textRange.characterAttributes.horizontalScale = stretchVal;
 
-            // PointText anchor anchors baseline Y and left X
+            tf.contents = converted;
+
+            if (targetFont) {
+                try {
+                    tf.textRange.characterAttributes.textFont = targetFont;
+                } catch (e) {}
+            }
+
+            // Anchor point in point text sets baseline position
             tf.anchor = [targetX, targetBaselineY];
 
             // Auto-fit to BB Width if requested and text overflows BB
@@ -637,13 +687,11 @@ function buildHandwritingDialog() {
             createdItems.push(tf);
         }
 
-        // Select the newly created text frames so user can see them and adjust stretch/nudge immediately
         doc.selection = null;
         for (var k = 0; k < createdItems.length; k++) {
             createdItems[k].selected = true;
         }
 
-        // Force Illustrator canvas redraw
         app.redraw();
     };
 
