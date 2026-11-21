@@ -365,10 +365,46 @@ function runHandwritingTool() {
     pText.margins = 10;
     pText.spacing = 6;
 
+    // Detect if user has a TextFrame currently selected on artboard
+    var selectedTextOnBoard = null;
+    if (doc.selection && doc.selection.length > 0) {
+        for (var sIdx = 0; sIdx < doc.selection.length; sIdx++) {
+            if (doc.selection[sIdx].typename === 'TextFrame') {
+                selectedTextOnBoard = doc.selection[sIdx].contents;
+                break;
+            }
+        }
+    }
+
     var defaultVietnameseText = 'C\u1ED9ng h\u00F2a x\u00E3 h\u1ED9i ch\u1EE7 ngh\u0129a Vi\u1EC7t Nam\n\u0110\u1ED9c l\u1EADp - T\u1EF1 do - H\u1EA1nh ph\u00FAc';
-    var initText = (userPrefs && userPrefs.lastText) ? userPrefs.lastText : defaultVietnameseText;
+    var initText = selectedTextOnBoard ? selectedTextOnBoard : ((userPrefs && userPrefs.lastText) ? userPrefs.lastText : defaultVietnameseText);
     var txtInput = pText.add('edittext', undefined, initText, { multiline: true, scrollable: true });
     txtInput.preferredSize = [520, 68];
+
+    // Helper row: Get text from selected text frame on canvas
+    var rTextHelpers = pText.add('group');
+    rTextHelpers.orientation = 'row';
+    rTextHelpers.alignChildren = ['left', 'center'];
+    rTextHelpers.spacing = 8;
+
+    var btnGetSelected = rTextHelpers.add('button', undefined, 'L\u1EA5y ch\u1EEF t\u1EEB Text \u0111ang ch\u1ECDn tr\u00EAn Artboard');
+    btnGetSelected.preferredSize = [230, 22];
+    btnGetSelected.onClick = function () {
+        if (doc.selection && doc.selection.length > 0) {
+            for (var s = 0; s < doc.selection.length; s++) {
+                if (doc.selection[s].typename === 'TextFrame') {
+                    txtInput.text = doc.selection[s].contents;
+                    return;
+                }
+            }
+            alert('C\u00E1c \u0111\u1ED1i t\u01B0\u1EE3ng \u0111ang ch\u1ECDn tr\u00EAn Artboard kh\u00F4ng ph\u1EA3i l\u00E0 Text!');
+        } else {
+            alert('Ch\u01B0a ch\u1ECDn \u0111\u1ED1i t\u01B0\u1EE3ng Text n\u00E0o tr\u00EAn Artboard!');
+        }
+    };
+
+    var lblHelperTip = rTextHelpers.add('statictext', undefined, '(H\u1ED7 tr\u1EE3 Ctrl+V ho\u1EB7c g\u00F5 tr\u1EF1c ti\u1EBFp tr\u00EAn Artboard)');
+    lblHelperTip.preferredSize = [270, 20];
 
     // Font Controls Row
     var rFont = pText.add('group');
