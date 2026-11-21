@@ -159,12 +159,15 @@
  */
 .board.white_11x14,
 .board.white_10x14,
-.board.white_14x20 {
+.board.white_14x20,
+.board.white.white_11x14,
+.board.white.white_10x14,
+.board.white.white_14x20 {
     max-width: 100%;
     margin: 12px auto 24px auto;
     background-color: #ffffff;
-    border: 1px solid #d1d5db;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    border: 1px solid #d1d5db !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
     border-radius: 4px;
     position: relative;
     overflow: hidden;
@@ -173,14 +176,17 @@
 }
 
 .board.white_11x14,
-.board.white_10x14 {
+.board.white_10x14,
+.board.white.white_11x14,
+.board.white.white_10x14 {
     width: 883.2px;
     height: 1152px;
     min-width: 883.2px;
     min-height: 1152px;
 }
 
-.board.white_14x20 {
+.board.white_14x20,
+.board.white.white_14x20 {
     width: 1113.6px;
     height: 1612.8px;
     min-width: 1113.6px;
@@ -188,7 +194,9 @@
 }
 
 .board.white_11x14 .grid,
-.board.white_10x14 .grid {
+.board.white_10x14 .grid,
+.board.white.white_11x14 .grid,
+.board.white.white_10x14 .grid {
     width: 883.2px;
     height: 1152px;
     min-width: 883.2px;
@@ -204,7 +212,8 @@
     background-repeat: repeat;
 }
 
-.board.white_14x20 .grid {
+.board.white_14x20 .grid,
+.board.white.white_14x20 .grid {
     width: 1113.6px;
     height: 1612.8px;
     min-width: 1113.6px;
@@ -221,7 +230,9 @@
 }
 
 .board.white_11x14 .grid.italics,
-.board.white_10x14 .grid.italics {
+.board.white_10x14 .grid.italics,
+.board.white.white_11x14 .grid.italics,
+.board.white.white_10x14 .grid.italics {
     width: 1350px;
     -webkit-transform: skewX(-17deg);
     transform: skewX(-17deg);
@@ -229,7 +240,8 @@
     transform-origin: 0 0;
 }
 
-.board.white_14x20 .grid.italics {
+.board.white_14x20 .grid.italics,
+.board.white.white_14x20 .grid.italics {
     width: 1800px;
     -webkit-transform: skewX(-17deg);
     transform: skewX(-17deg);
@@ -242,7 +254,13 @@
 .board.white_10x14 #result,
 .board.white_10x14 .result-text,
 .board.white_14x20 #result,
-.board.white_14x20 .result-text {
+.board.white_14x20 .result-text,
+.board.white.white_11x14 #result,
+.board.white.white_11x14 .result-text,
+.board.white.white_10x14 #result,
+.board.white.white_10x14 .result-text,
+.board.white.white_14x20 #result,
+.board.white.white_14x20 .result-text {
     position: absolute;
     left: var(--grid-unit);
     top: 0;
@@ -268,7 +286,13 @@
 .board.white_10x14 #result > p.line,
 .board.white_10x14 .result-text > p.line,
 .board.white_14x20 #result > p.line,
-.board.white_14x20 .result-text > p.line {
+.board.white_14x20 .result-text > p.line,
+.board.white.white_11x14 #result > p.line,
+.board.white.white_11x14 .result-text > p.line,
+.board.white.white_10x14 #result > p.line,
+.board.white.white_10x14 .result-text > p.line,
+.board.white.white_14x20 #result > p.line,
+.board.white.white_14x20 .result-text > p.line {
     height: calc(var(--grid-unit) * 8) !important;
     max-height: calc(var(--grid-unit) * 8) !important;
     min-height: 0 !important;
@@ -286,7 +310,13 @@
 .board.white_10x14 #result.small,
 .board.white_10x14 .result-text.small,
 .board.white_14x20 #result.small,
-.board.white_14x20 .result-text.small {
+.board.white_14x20 .result-text.small,
+.board.white.white_11x14 #result.small,
+.board.white.white_11x14 .result-text.small,
+.board.white.white_10x14 #result.small,
+.board.white.white_10x14 .result-text.small,
+.board.white.white_14x20 #result.small,
+.board.white.white_14x20 .result-text.small {
     grid-auto-rows: calc(var(--grid-unit) * 4);
     font-size: 37pt;
     line-height: calc(var(--grid-unit) * 4);
@@ -298,7 +328,13 @@
 .board.white_10x14 #result.small > p.line,
 .board.white_10x14 .result-text.small > p.line,
 .board.white_14x20 #result.small > p.line,
-.board.white_14x20 .result-text.small > p.line {
+.board.white_14x20 .result-text.small > p.line,
+.board.white.white_11x14 #result.small > p.line,
+.board.white.white_11x14 .result-text.small > p.line,
+.board.white.white_10x14 #result.small > p.line,
+.board.white.white_10x14 .result-text.small > p.line,
+.board.white.white_14x20 #result.small > p.line,
+.board.white.white_14x20 .result-text.small > p.line {
     height: calc(var(--grid-unit) * 4) !important;
     max-height: calc(var(--grid-unit) * 4) !important;
     min-height: 0 !important;
@@ -315,7 +351,13 @@
 .board.white_10x14 p.line::after,
 .board.white_10x14 .result-text > p.line::after,
 .board.white_14x20 p.line::after,
-.board.white_14x20 .result-text > p.line::after {
+.board.white_14x20 .result-text > p.line::after,
+.board.white.white_11x14 p.line::after,
+.board.white.white_11x14 .result-text > p.line::after,
+.board.white.white_10x14 p.line::after,
+.board.white.white_10x14 .result-text > p.line::after,
+.board.white.white_14x20 p.line::after,
+.board.white.white_14x20 .result-text > p.line::after {
     display: none !important;
     content: none !important;
 }
