@@ -275,7 +275,72 @@ function scanGridItems(doc) {
     return result;
 }
 
-// --- 6. Main Runner Dialog ---
+// --- 6. Persistent Preferences Storage (Folder.userData / VietnameseHandwriting / settings.json) ---
+function stringifyJSON(obj) {
+    if (!obj) return '{}';
+    var pairs = [];
+    for (var k in obj) {
+        if (obj.hasOwnProperty(k)) {
+            var val = obj[k];
+            if (typeof val === 'string') {
+                var s = val.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+                pairs.push('"' + k + '":"' + s + '"');
+            } else if (typeof val === 'number' || typeof val === 'boolean') {
+                pairs.push('"' + k + '":' + val);
+            }
+        }
+    }
+    return '{\n  ' + pairs.join(',\n  ') + '\n}';
+}
+
+function getSettingsFile() {
+    var baseFolder = null;
+    try {
+        if (Folder.userData && Folder.userData.exists) {
+            baseFolder = Folder.userData;
+        }
+    } catch (eU) {}
+    if (!baseFolder) {
+        baseFolder = Folder.myDocuments;
+    }
+    var appDir = new Folder(baseFolder.fsName + '/VietnameseHandwriting');
+    if (!appDir.exists) {
+        try { appDir.create(); } catch (eCr) {}
+    }
+    return new File(appDir.fsName + '/settings.json');
+}
+
+function loadPreferences() {
+    try {
+        var f = getSettingsFile();
+        if (f.exists) {
+            f.encoding = 'UTF-8';
+            if (f.open('r')) {
+                var txt = f.read();
+                f.close();
+                if (txt && txt.replace(/^\s+|\s+$/g, '') !== '') {
+                    return eval('(' + txt + ')');
+                }
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+function savePreferences(prefs) {
+    try {
+        var f = getSettingsFile();
+        f.encoding = 'UTF-8';
+        if (f.open('w')) {
+            f.write(stringifyJSON(prefs));
+            f.close();
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
+// --- 7. Main Runner Dialog ---
 function runHandwritingTool() {
     if (!app.documents || app.documents.length === 0) {
         alert('Vui l\u00F2ng m\u1EDF t\u00E0i li\u1EC7u Illustrator c\u00F3 l\u01B0\u1EDBti tr\u01B0\u1EDBc khi ch\u1EA1y script!');
@@ -284,6 +349,7 @@ function runHandwritingTool() {
 
     var doc = app.activeDocument;
     var gridData = scanGridItems(doc);
+    var userPrefs = loadPreferences();
 
     // Modal dialog ensures synchronous execution with full document access
     var win = new Window('dialog', 'Vietnamese Handwriting (HP001) - Named Grid & BB Alignment');
@@ -300,7 +366,8 @@ function runHandwritingTool() {
     pText.spacing = 6;
 
     var defaultVietnameseText = 'C\u1ED9ng h\u00F2a x\u00E3 h\u1ED9i ch\u1EE7 ngh\u0129a Vi\u1EC7t Nam\n\u0110\u1ED9c l\u1EADp - T\u1EF1 do - H\u1EA1nh ph\u00FAc';
-    var txtInput = pText.add('edittext', undefined, defaultVietnameseText, { multiline: true, scrollable: true });
+    var initText = (userPrefs && userPrefs.lastText) ? userPrefs.lastText : defaultVietnameseText;
+    var txtInput = pText.add('edittext', undefined, initText, { multiline: true, scrollable: true });
     txtInput.preferredSize = [520, 68];
 
     // Font Controls Row
@@ -341,10 +408,30 @@ function runHandwritingTool() {
     var hpFontList = scanHPFonts();
     if (hpFontList.length > 0) {
         ddFontSelect.removeAll();
+        var selectIdx = 0;
         for (var fIdx = 0; fIdx < hpFontList.length; fIdx++) {
             ddFontSelect.add('item', hpFontList[fIdx].displayName);
+            if (userPrefs && userPrefs.fontName) {
+                if (hpFontList[fIdx].font.name === userPrefs.fontName || hpFontList[fIdx].displayName === userPrefs.fontName) {
+                    selectIdx = fIdx;
+                }
+            }
         }
-        ddFontSelect.selection = 0;
+        ddFontSelect.selection = selectIdx;
+    }
+
+    // Apply restored font preferences if present
+    if (userPrefs) {
+        if (typeof userPrefs.fontSizeIndex === 'number' && userPrefs.fontSizeIndex >= 0 && userPrefs.fontSizeIndex < 3) {
+            ddFontSize.selection = userPrefs.fontSizeIndex;
+            if (userPrefs.customSize) {
+                txtCustomSize.text = String(userPrefs.customSize);
+            }
+            txtCustomSize.visible = (userPrefs.fontSizeIndex === 2);
+        }
+        if (typeof userPrefs.isBold === 'boolean') {
+            chkBold.value = userPrefs.isBold;
+        }
     }
 
     chkBold.onClick = function () {
@@ -407,6 +494,14 @@ function runHandwritingTool() {
     var chkAutoFitBB = rGridOptions.add('checkbox', undefined, 'T\u1EF1 \u0111\u1ED9ng co gi\u00E3n v\u1EEBa khung BB (Auto-fit to BB)');
     chkAutoFitBB.value = true;
 
+    // Apply restored grid preferences
+    if (userPrefs) {
+        if (userPrefs.indent !== undefined) txtIndent.text = String(userPrefs.indent);
+        if (userPrefs.baselineNudge !== undefined) txtBaselineNudge.text = String(userPrefs.baselineNudge);
+        if (userPrefs.multiLine !== undefined) chkMultiLine.value = !!userPrefs.multiLine;
+        if (userPrefs.autoFitBB !== undefined) chkAutoFitBB.value = !!userPrefs.autoFitBB;
+    }
+
     function refreshGridDisplay() {
         gridData = scanGridItems(doc);
         if (!gridData) {
@@ -436,10 +531,15 @@ function runHandwritingTool() {
 
         ddTargetLine.removeAll();
         if (lineCount > 0) {
+            var targetLineIdx = 0;
             for (var i = 0; i < lineCount; i++) {
-                ddTargetLine.add('item', 'H' + gridData.lineNumbers[i]);
+                var lName = 'H' + gridData.lineNumbers[i];
+                ddTargetLine.add('item', lName);
+                if (userPrefs && userPrefs.startLine === lName) {
+                    targetLineIdx = i;
+                }
             }
-            ddTargetLine.selection = 0;
+            ddTargetLine.selection = targetLineIdx;
         } else {
             ddTargetLine.add('item', 'H1 (m\u1EB7c \u0111\u1ECBnh)');
             ddTargetLine.selection = 0;
@@ -491,16 +591,55 @@ function runHandwritingTool() {
         if (!isNaN(v)) slStretch.value = v;
     };
 
+    // Apply restored stretch preferences
+    if (userPrefs && userPrefs.stretch !== undefined) {
+        txtStretch.text = String(userPrefs.stretch);
+        var sVal = parseFloat(userPrefs.stretch);
+        if (!isNaN(sVal)) slStretch.value = sVal;
+    }
+
+    function collectCurrentPrefs() {
+        var fontName = '';
+        if (hpFontList && hpFontList.length > 0 && ddFontSelect.selection) {
+            fontName = hpFontList[ddFontSelect.selection.index].font.name;
+        }
+        var selLine = (ddTargetLine && ddTargetLine.selection) ? ddTargetLine.selection.text : 'H1';
+        return {
+            fontName: fontName,
+            fontSizeIndex: ddFontSize.selection ? ddFontSize.selection.index : 0,
+            customSize: txtCustomSize.text,
+            isBold: chkBold.value,
+            startLine: selLine,
+            indent: txtIndent.text,
+            baselineNudge: txtBaselineNudge.text,
+            multiLine: chkMultiLine.value,
+            autoFitBB: chkAutoFitBB.value,
+            stretch: txtStretch.text,
+            lastText: txtInput.text
+        };
+    }
+
     // --- Panel D: Action Buttons ---
     var rAction = win.add('group');
     rAction.orientation = 'row';
     rAction.alignment = 'right';
     rAction.spacing = 10;
 
+    var btnSaveDefaults = rAction.add('button', undefined, 'L\u01B0u t\u00F9y ch\u1ECDn (Save Prefs)');
+    btnSaveDefaults.preferredSize = [140, 32];
+    btnSaveDefaults.onClick = function () {
+        var p = collectCurrentPrefs();
+        if (savePreferences(p)) {
+            alert('\u0110\u00E3 l\u01B0u th\u00E0nh c\u00F4ng t\u00F9y ch\u1ECDn v\u00E0o t\u1EC7p settings.json!');
+        } else {
+            alert('Kh\u00F4ng th\u1EC3 l\u01B0u file c\u00E0i \u0111\u1EB7t!');
+        }
+    };
+
     var btnInsert = rAction.add('button', undefined, 'Ch\u00E8n Ch\u1EEF v\u00E0o L\u01B0\u1EDBi (Insert to Grid)');
-    btnInsert.preferredSize = [230, 32];
+    btnInsert.preferredSize = [200, 32];
     var btnClose = rAction.add('button', undefined, '\u0110\u00F3ng (Close)');
-    btnClose.preferredSize = [100, 32];
+    btnClose.preferredSize = [80, 32];
 
     btnClose.onClick = function () { win.close(); };
 
@@ -511,6 +650,11 @@ function runHandwritingTool() {
                 alert('Vui l\u00F2ng nh\u1EADp n\u1ED9i dung v\u0103n b\u1EA3n!');
                 return;
             }
+
+            // Automatically persist preferences
+            try {
+                savePreferences(collectCurrentPrefs());
+            } catch (eSave) {}
 
             var targetFont = null;
             if (hpFontList && hpFontList.length > 0 && ddFontSelect.selection) {
