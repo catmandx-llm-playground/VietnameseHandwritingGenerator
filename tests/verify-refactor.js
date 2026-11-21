@@ -57,6 +57,7 @@ async function runTests() {
     assert(typeof boardRenderer.render === 'function', 'board-renderer exports render');
     assert(typeof boardRenderer.syncBlackboards === 'function', 'board-renderer exports syncBlackboards');
     assert(typeof boardRenderer.syncWhite11x14 === 'function', 'board-renderer exports syncWhite11x14');
+    assert(typeof boardRenderer.syncWhite14x20 === 'function', 'board-renderer exports syncWhite14x20');
 
     const { dragStretchHandler } = await import('../static/js/modules/drag-stretch-handler.js');
     assert(typeof dragStretchHandler.applyWordStretch === 'function', 'drag-stretch-handler exports applyWordStretch');
@@ -74,6 +75,8 @@ async function runTests() {
     assert(typeof exportEngine.exportFile === 'function', 'export-engine exports exportFile');
     assert(typeof exportEngine.renderBlackboardToCanvas === 'function', 'export-engine exports renderBlackboardToCanvas');
     assert(typeof exportEngine.renderWhite11x14PageToCanvas === 'function', 'export-engine exports renderWhite11x14PageToCanvas');
+    assert(typeof exportEngine.renderWhite14x20PageToCanvas === 'function', 'export-engine exports renderWhite14x20PageToCanvas');
+    assert(typeof exportEngine.exportWhite14x20ToPng === 'function', 'export-engine exports exportWhite14x20ToPng');
 
     const { uiController } = await import('../static/js/modules/ui-controller.js');
     assert(typeof uiController.changeFontSize === 'function', 'ui-controller exports changeFontSize');
@@ -83,6 +86,8 @@ async function runTests() {
     assert(typeof view.render === 'function', 'view facade exposes render');
     assert(typeof view.exportFile === 'function', 'view facade exposes exportFile');
     assert(typeof view.loadSample === 'function', 'view facade exposes loadSample');
+    assert(typeof view.syncWhite14x20 === 'function', 'view facade exposes syncWhite14x20');
+    assert(typeof view.renderWhite14x20PageToCanvas === 'function', 'view facade exposes renderWhite14x20PageToCanvas');
 
     // -------------------------------------------------------------------------
     // TEST SUITE 2: Linguistic Glyph Mapping & Unicode Conversion
@@ -142,7 +147,8 @@ async function runTests() {
     // 3. Blackboard Single-Line Isolation
     assert(boardCss.includes('left: 96.09px !important;') && boardCss.includes('display: block !important;') && boardCss.includes('position: absolute !important;'), 'Blackboard single-line absolute architecture anchored at x = 96.09px');
 
-    // 4. 11x14 Export Constants in export-engine.js
+    // 4. 11x14 & 14x20 Notebook Layout Invariants in board.css & export-engine.js
+    assert(boardCss.includes('.board.white_14x20') && boardCss.includes('1113.6px') && boardCss.includes('1612.8px'), '14x20 Notebook layout geometry (1113.6px x 1612.8px) present in board.css');
     const exportJs = fs.readFileSync(path.join(projectRoot, 'static/js/modules/export-engine.js'), 'utf-8');
     assert(exportJs.includes('gridLineWidthMajor = 1.4;'), 'Export gridLineWidthMajor calibrated to 1.4');
     assert(exportJs.includes('gridLineWidthMinor = 0.7;'), 'Export gridLineWidthMinor calibrated to 0.7');

@@ -8,7 +8,7 @@ Tài liệu thiết kế kiến trúc kỹ thuật dành cho **AI Agents** và *
 
 `VietnameseHandwritingGenerator` là ứng dụng web tương tác chạy trên trình duyệt phục vụ giáo viên, phụ huynh và học sinh tiểu học:
 - Tạo mẫu chữ viết ô ly tiểu học chuẩn font **HP001** (HP001 3.0 của Nhà in HP).
-- Hỗ trợ 3 loại bố cục: **Bảng đen phấn trắng vô cực**, **Vở ô ly trắng (chuẩn & 11x14 trang vở)**, và **Bảng con tiểu học (Blackboard slate)**.
+- Hỗ trợ các loại bố cục: **Bảng đen phấn trắng vô cực**, **Vở ô ly trắng (chuẩn & trang vở 11x14, 14x20)**, và **Bảng con tiểu học (Blackboard slate)**.
 - Tạo mẫu chấm đặt bút hướng dẫn (chấm mẫu chuẩn theo nét chữ và chấm tự do trên ô ly SVG).
 - Xuất tài liệu đa định dạng độ nét cao: **PNG (Ultra HD 4x/8x)**, **Vector SVG (vô cực không vỡ nét)**, và **PDF in ấn A4**.
 
@@ -66,7 +66,7 @@ graph TD
 | `static/js/modules/config.js` | `APP_CONFIG` | Tham số cấu hình toàn cục: ngưỡng giãn chữ chuẩn (121.89%), giới hạn kéo từ quá đầu dòng (28.35px). |
 | `static/js/modules/utils.js` | `utils` | Xử lý chuỗi tiếng Việt: tách dấu thanh (`getAccent`), chuyển chữ hoa (`isUpperCase`), tách dấu thanh giữ nguyên nguyên âm gốc (`removeAccents`), lọc HTML (`stripHtml`). |
 | `static/js/modules/model.js` | `model` | Nạp `/data/all.json`, tra cứu phụ âm ghép, quy tắc nối nét ngữ cảnh (`getGlyph`), điểm bắt đầu (`defaultStartPoints`), cấu hình chấm mẫu (`getGlyphDotConfigs`). |
-| `static/js/modules/board-renderer.js` | `boardRenderer` | Điều phối render văn bản ra DOM: đồng bộ bảng đen (`syncBlackboards`), bảng trắng trang vở (`syncWhite11x14`), bảng vô cực (`syncNormalBoard`), tạo các thẻ `<p class="line">` và `<span class="word">`. |
+| `static/js/modules/board-renderer.js` | `boardRenderer` | Điều phối render văn bản ra DOM: đồng bộ bảng đen (`syncBlackboards`), bảng trắng trang vở (`syncWhite11x14`, `syncWhite14x20`), bảng vô cực (`syncNormalBoard`), tạo các thẻ `<p class="line">` và `<span class="word">`. |
 | `static/js/modules/dotting-manager.js` | `dottingManager` | Tính toán bước cách ô (`calculateAutoSpaces`), hiển thị chấm mẫu hướng dẫn đặt bút (`renderDotsForLine`), chữ mờ tập tô (`parseOutlineOption`). |
 | `static/js/modules/drag-stretch-handler.js` | `dragStretchHandler` | Xử lý tương tác kéo thả từ chuột/cảm ứng (`btn-word-drag`), kéo giãn chiều ngang (`btn-word-stretch`), bật/tắt đậm từng từ (`btn-word-bold`), mở popover cài đặt nhanh. |
 | `static/js/modules/freestyle-dotting-modal.js` | `freestyleDottingModal` | Hộp thoại chỉnh sửa chấm tự do tương tác: lưới SVG ô ly 56px, kéo thả điểm chấm, bắt dính 0.25 ô ly (`snap`), áp dụng theo từ hoặc toàn bộ văn bản. |
@@ -152,7 +152,7 @@ Các bất biến sau đây bắt buộc **KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI**
 ### 4.3. Căn Giữa Tâm Đường Kẻ (Guideline Centering Invariant)
 - Đáy của thân chữ cái (baseline) phải nằm chính giữa độ dày của đường kẻ đậm 1.5px (không lệch lên trên hoặc xuống dưới mép nét kẻ). Container `padding-top` đã được cân chỉnh chuẩn xác qua:
   - Bảng vô cực: `calc(var(--grid-unit) * 0.7 - 1.25px)` (72pt) và `calc(var(--grid-unit) * 3.32 - 0.4px)` (37pt).
-  - Vở 11x14: `calc(var(--grid-unit) * 0.2 + 8.75px)` (72pt) và `calc(var(--grid-unit) * 3.34 - 0.4px)` (37pt).
+  - Vở 11x14 & 14x20: `calc(var(--grid-unit) * 0.2 + 8.75px)` (72pt) và `calc(var(--grid-unit) * 3.34 - 0.4px)` (37pt).
 
 ### 4.4. Kiến trúc Bảng Con (Blackboard Slate Architecture)
 - Bảng con `.board.blackboard` **KHÔNG** dùng CSS Grid đa dòng. Nó kết xuất 1 dòng văn bản duy nhất neo cố định trên Đường kẻ 1 ($y = 408.05\text{px}$) bên trong khung vector SVG $842\text{px} \times 595\text{px}$.
@@ -170,8 +170,11 @@ Các bất biến sau đây bắt buộc **KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI**
   ```
   **Tuyệt đối không áp dụng giới hạn dòng CSS Grid (76.8px hay 153.6px) lên `.board.blackboard`**, vì sẽ tạo negative half-leading làm chữ vọt lên trên đường kẻ từ 34px đến 68px.
 
-### 4.5. Thông số Xuất Trang Vở 11x14 (Export Thickness Constants)
+### 4.5. Thông số Xuất Trang Vở 11x14 & 14x20 (Export Thickness Constants)
 Trong `static/js/modules/export-engine.js`:
+- Kích thước trang:
+  - Vở 11x14: 11 khối x 14 khối = 883.2px x 1152px (7 dòng 72pt, 14 dòng 37pt).
+  - Vở 14x20: 14 khối x 20 khối = 1113.6px x 1612.8px (10 dòng 72pt, 20 dòng 37pt).
 - `gridLineWidthMajor = 1.4;` (đường kẻ chính, giảm 30% so với gốc 2.0).
 - `gridLineWidthMinor = 0.7;` (đường kẻ phụ, giảm 30% so với gốc 1.0).
 - `majorColor = 'rgba(60, 75, 115, 0.9)'`, `minorColor = 'rgba(90, 115, 165, 0.7)'`.

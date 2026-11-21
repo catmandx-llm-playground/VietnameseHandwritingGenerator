@@ -1470,6 +1470,684 @@ exportEngine.exportWhite11x14ToSvg = async function () {
 exportEngine.exportWhite10x14ToSvg = exportEngine.exportWhite11x14ToSvg;
 
 /* ==========================================================================
+   WHITE 14x20 EXPORT (PNG, PDF, SVG)
+   ========================================================================== */
+
+exportEngine.renderWhite14x20PageToCanvas = async function (boardEl, pIdx, customScale, totalBoards) {
+    let scale = customScale || exportEngine.getExportScale();
+    const ptToPx = 96 / 72;
+    const subGridPx = 14.4 * ptToPx; // 19.2px
+
+    const widthPx = 1113.6;
+    const heightPx = 1612.8;
+    const isMobile = exportEngine.isMobileDevice();
+    const maxCanvasDim = isMobile ? 8192 : 16384;
+    const maxCanvasArea = isMobile ? 25000000 : 100000000;
+    if (widthPx * scale > maxCanvasDim || heightPx * scale > maxCanvasDim || (widthPx * scale * heightPx * scale) > maxCanvasArea) {
+        const scaleDim = maxCanvasDim / Math.max(widthPx, heightPx);
+        const scaleArea = Math.sqrt(maxCanvasArea / (widthPx * heightPx));
+        scale = Math.max(1, Math.min(scale, Math.floor(Math.min(scaleDim, scaleArea) * 10) / 10));
+    }
+    const canvasWidth = Math.round(widthPx * scale);
+    const canvasHeight = Math.round(heightPx * scale);
+
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.board.white_14x20 .result-text, #result').hasClass('small');
+    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
+    const textColor = $('#font-color-input').val() || '#2b1055';
+
+    const gridOriginX = subGridPx; // 19.2px
+    const gridOriginY = subGridPx * 2; // 38.4px
+
+    const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
+    const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
+    const firstBaselineY = gridOriginY + 4 * subGridPx;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    // 1. Draw Paper Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, widthPx, heightPx);
+
+    // 2. Draw Grid Lines
+    const majorColor = 'rgba(60, 75, 115, 0.9)';
+    const minorColor = 'rgba(90, 115, 165, 0.7)';
+    const gridLineWidthMajor = 1.4;
+    const gridLineWidthMinor = 0.7;
+
+    for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
+        const k = Math.round((y - gridOriginY) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorColor : minorColor;
+        ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
+        ctx.moveTo(0, y);
+        ctx.lineTo(widthPx, y);
+        ctx.stroke();
+    }
+
+    const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
+    const xMin = -heightPx * slantOffset;
+    const xMax = widthPx + heightPx * slantOffset;
+    const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
+
+    for (let x = startX; x <= xMax; x += subGridPx) {
+        const k = Math.round((x - gridOriginX) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorColor : minorColor;
+        ctx.lineWidth = isMajor ? gridLineWidthMajor : gridLineWidthMinor;
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x - heightPx * slantOffset, heightPx);
+        ctx.stroke();
+    }
+
+    // 3. Draw Text
+    ctx.save();
+    if (isItalics) {
+        ctx.transform(1, 0, -Math.tan(17 * Math.PI / 180), 1, 0, 0);
+    }
+
+    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
+    ctx.fillStyle = textColor;
+    ctx.textBaseline = 'alphabetic';
+
+    const linesPerPage = isSmall ? 20 : 10;
+    const $lines = $(boardEl).find('p.line');
+    const pageTexts = [];
+
+    $lines.each(function (lIdx) {
+        const globalLineIdx = (pIdx * linesPerPage) + lIdx;
+        const yPos = firstBaselineY + (lIdx * lineHeightPx);
+        const $line = $(this);
+        const words = [];
+        $line.children('.word').each(function () {
+            const wordEl = this;
+            const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+            const rawWord = $(wordEl).attr('data-raw') || '';
+            const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
+            words.push({
+                text: wordText,
+                raw: rawWord,
+                offsetLeft: wordEl.offsetLeft,
+                offsetWidth: wordEl.offsetWidth,
+                stretch: stretch,
+                weight: weight
+            });
+        });
+
+        if (words.length > 0) {
+            pageTexts.push(words.map(w => w.raw || w.text).join(' '));
+        }
+
+        ctx.fillStyle = textColor;
+        words.forEach(word => {
+            const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, sans-serif`;
+            if (word.stretch && word.stretch !== 1.0) {
+                ctx.save();
+                ctx.translate(xPos, yPos);
+                ctx.scale(word.stretch, 1.0);
+                ctx.fillStyle = textColor;
+                ctx.fillText(word.text, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = textColor;
+                ctx.fillText(word.text, xPos, yPos);
+            }
+        });
+
+        const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
+        const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : globalLineIdx;
+        const hasText = words.length > 0;
+        const hasAnyText = ($('#input').val() || '').trim().length > 0;
+        const lineDotConfig = exportEngine.getDottingConfig(validSrcIdx);
+        if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+            let wordsToDraw = words;
+            if (wordsToDraw.length === 0) {
+                let $lineWithWords = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $line.prevAll('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $('.board.white_14x20').find('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if ($lineWithWords.length) {
+                    $lineWithWords.children('.word').each(function () {
+                        wordsToDraw.push({
+                            text: $(this).find('.word-text').text() || $(this).text(),
+                            raw: $(this).attr('data-raw') || '',
+                            offsetLeft: this.offsetLeft,
+                            stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
+                            weight: $(this).attr('data-weight') || null
+                        });
+                    });
+                }
+            }
+            let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
+            if (wordsToDraw.length === 0) {
+                const rawLines = ($('#input').val() || '').split('\n').map(l => l.trim());
+                const lineFromInput = rawLines[validSrcIdx] || rawLines.find(l => l.length > 0) || 'a';
+                const tokens = lineFromInput.split(/\s+/).filter(w => w.length > 0);
+                wordsToDraw = (tokens.length > 0 ? tokens : ['a']).map(w => ({
+                    text: model.getUnicodeStr(w),
+                    raw: w,
+                    offsetLeft: 0,
+                    stretch: 1.0
+                }));
+                rawLineText = wordsToDraw[0].raw;
+            }
+            const charUnit = model.getFirstCharUnit(rawLineText);
+            const activeDotConfig = exportEngine.getActiveDotConfig(charUnit, validSrcIdx, 0);
+            let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+            if (!hasDotConfigs && wordsToDraw.length > 1) {
+                for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                    const wInfo = wordsToDraw[wIdx];
+                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                    const wDotCfg = exportEngine.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                        hasDotConfigs = true;
+                        break;
+                    }
+                }
+            }
+            const outlineInfo = exportEngine.parseOutlineOption(lineDotConfig.outline);
+
+            const olyUnitPx = isSmall ? 9.6 : 19.2;
+            const blockWidth = 76.8;
+            const dotRadius = isSmall ? 1.25 : 1.75;
+
+            const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+            const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+            const baseWordX = gridOriginX + wordOffset;
+
+            if (hasDotConfigs || outlineInfo.isEnabled) {
+                for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                    if (hasText || lineDotConfig.fullDot || j === 0) {
+                        const shiftX = j * blockWidth * lineDotConfig.spaces;
+
+                        // A. Outline copies
+                        if (outlineInfo.isEnabled) {
+                            const isCopy = (!hasText || j > 0);
+                            if (isCopy) {
+                                ctx.save();
+                                ctx.textBaseline = 'alphabetic';
+                                const isDotted = (outlineInfo.style === 'dotted');
+                                const isFaint = (outlineInfo.style === 'faint');
+                                const isCurve = (outlineInfo.style === 'curve');
+
+                                if (isDotted) {
+                                    ctx.font = `normal ${fontSizePx}px HP001TD, serif`;
+                                    ctx.fillStyle = 'rgba(43, 16, 85, 0.65)';
+                                } else if (isFaint) {
+                                    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    ctx.fillStyle = 'rgba(43, 16, 85, 0.32)';
+                                } else {
+                                    ctx.font = `${isBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    ctx.strokeStyle = 'rgba(43, 16, 85, 0.42)';
+                                    ctx.lineWidth = isSmall ? 0.8 : 1.0;
+                                }
+
+                                const drawText = (str, x, y, strStretch) => {
+                                    if (strStretch && strStretch !== 1.0) {
+                                        ctx.save();
+                                        ctx.translate(x, y);
+                                        ctx.scale(strStretch, 1.0);
+                                        if (isCurve) {
+                                            ctx.strokeText(str, 0, 0);
+                                        } else {
+                                            ctx.fillText(str, 0, 0);
+                                        }
+                                        ctx.restore();
+                                    } else {
+                                        if (isCurve) {
+                                            ctx.strokeText(str, x, y);
+                                        } else {
+                                            ctx.fillText(str, x, y);
+                                        }
+                                    }
+                                };
+
+                                if (outlineInfo.scope === 'first') {
+                                    const xPos = baseWordX + shiftX;
+                                    const w0 = wordsToDraw[0];
+                                    const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                    if (!isDotted) {
+                                        const word0Weight = w0 ? w0.weight : null;
+                                        const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                        ctx.font = `${firstWordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                    }
+                                    drawText(textToDraw, xPos, yPos, firstStretch);
+                                } else if (outlineInfo.scope === 'all') {
+                                    wordsToDraw.forEach(w => {
+                                        const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                        const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                        if (!isDotted) {
+                                            const wordIsBold = w.weight === 'bold' ? true : (wordIsBold === 'normal' ? false : isBold);
+                                            ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
+                                        }
+                                        drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
+                                    });
+                                }
+                                ctx.restore();
+                            }
+                        }
+
+                        // B. Guide dots
+                        if (hasDotConfigs) {
+                            if (wordsToDraw && wordsToDraw.length > 0) {
+                                wordsToDraw.forEach((wInfo, wIdx) => {
+                                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                    const wDotCfg = exportEngine.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                        const wBaseX = gridOriginX + wInfo.offsetLeft;
+                                        const wStretch = wInfo.stretch || 1.0;
+                                        for (const dot of wDotCfg.dots) {
+                                            const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
+                                            const dotY = yPos - (dot.y * olyUnitPx);
+                                            ctx.beginPath();
+                                            ctx.fillStyle = lineDotConfig.color;
+                                            ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+                                            ctx.fill();
+                                        }
+                                    }
+                                });
+                            } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                                for (const dot of activeDotConfig.dots) {
+                                    const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                    const dotY = yPos - (dot.y * olyUnitPx);
+                                    ctx.beginPath();
+                                    ctx.fillStyle = lineDotConfig.color;
+                                    ctx.arc(dotX, dotY, dotRadius, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    ctx.restore();
+
+    const firstText = pageTexts[0] || 'chu_dep';
+    const pageSuffix = totalBoards > 1 ? `_p${pIdx + 1}` : '';
+    const fileName = exportEngine.generateFileName('white_14x20' + pageSuffix, firstText, 'png');
+
+    return { canvas, fileName, firstText };
+};
+
+exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoards) {
+    const ptToPx = 96 / 72;
+    const subGridPx = 14.4 * ptToPx; // 19.2px
+
+    const widthPx = 1113.6;
+    const heightPx = 1612.8;
+
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('.board.white_14x20 .result-text, #result').hasClass('small');
+    const isBold = $('#weight-checkbox').is(':checked') || $('.result-text, #result').hasClass('bold');
+    const isItalics = $('.grid').hasClass('italics') || $('.board').hasClass('italics') || $('#style-checkbox').is(':checked');
+    const textColor = $('#font-color-input').val() || '#2b1055';
+
+    const gridOriginX = subGridPx; // 19.2px
+    const gridOriginY = subGridPx * 2; // 38.4px
+
+    const fontSizePx = (isSmall ? 37 : 72) * ptToPx;
+    const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
+    const firstBaselineY = gridOriginY + 4 * subGridPx;
+
+    const fontDefs = await exportEngine.buildSvgFontDefs();
+
+    // 1. Grid Lines
+    const majorColor = 'rgba(60, 75, 115, 0.9)';
+    const minorColor = 'rgba(90, 115, 165, 0.7)';
+    const gridLineWidthMajor = 1.4;
+    const gridLineWidthMinor = 0.7;
+
+    let linesSvg = '';
+    for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
+        const k = Math.round((y - gridOriginY) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+    }
+
+    const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
+    const xMax = widthPx + heightPx * slantOffset;
+    const startX = (gridOriginX % subGridPx) - heightPx * slantOffset;
+
+    for (let x = startX; x <= xMax; x += subGridPx) {
+        const k = Math.round((x - gridOriginX) / subGridPx);
+        const isMajor = (k % 4 === 0);
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+    }
+
+    // 2. Text & Dots
+    const linesPerPage = isSmall ? 20 : 10;
+    const $lines = $(boardEl).find('p.line');
+    const pageTexts = [];
+
+    let textSvg = '';
+    let dottingSvg = '';
+
+    $lines.each(function (lIdx) {
+        const globalLineIdx = (pIdx * linesPerPage) + lIdx;
+        const yPos = firstBaselineY + (lIdx * lineHeightPx);
+        const $line = $(this);
+        const words = [];
+        $line.children('.word').each(function () {
+            const wordEl = this;
+            const wordText = $(wordEl).find('.word-text').text() || $(wordEl).text();
+            const rawWord = $(wordEl).attr('data-raw') || '';
+            const stretch = parseFloat($(wordEl).attr('data-stretch')) || 1.0;
+            const weight = $(wordEl).attr('data-weight') || null;
+            words.push({
+                text: wordText,
+                raw: rawWord,
+                offsetLeft: wordEl.offsetLeft,
+                offsetWidth: wordEl.offsetWidth,
+                stretch: stretch,
+                weight: weight
+            });
+        });
+
+        if (words.length > 0) {
+            pageTexts.push(words.map(w => w.raw || w.text).join(' '));
+        }
+
+        words.forEach(word => {
+            const xPos = gridOriginX + word.offsetLeft;
+            const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
+            const fontWeight = wordIsBold ? 'bold' : 'normal';
+            const escaped = exportEngine.escapeXml(word.text);
+            if (word.stretch && word.stretch !== 1.0) {
+                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            } else {
+                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
+            }
+        });
+
+        const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
+        const validSrcIdx = !isNaN(srcLineIdx) ? srcLineIdx : globalLineIdx;
+        const hasText = words.length > 0;
+        const hasAnyText = ($('#input').val() || '').trim().length > 0;
+        const lineDotConfig = exportEngine.getDottingConfig(validSrcIdx);
+        if (lineDotConfig && lineDotConfig.enabled && hasAnyText) {
+            let wordsToDraw = words;
+            if (wordsToDraw.length === 0) {
+                let $lineWithWords = $(`p.line[data-source-line-idx="${validSrcIdx}"][data-is-practice="false"]`).first();
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $line.prevAll('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if (!$lineWithWords.length) {
+                    $lineWithWords = $('.board.white_14x20').find('p.line').filter(function () { return $(this).children('.word').length > 0; }).first();
+                }
+                if ($lineWithWords.length) {
+                    $lineWithWords.children('.word').each(function () {
+                        wordsToDraw.push({
+                            text: $(this).find('.word-text').text() || $(this).text(),
+                            raw: $(this).attr('data-raw') || '',
+                            offsetLeft: this.offsetLeft,
+                            stretch: parseFloat($(this).attr('data-stretch')) || 1.0,
+                            weight: $(this).attr('data-weight') || null
+                        });
+                    });
+                }
+            }
+            let rawLineText = wordsToDraw.length > 0 ? (wordsToDraw[0].raw || wordsToDraw[0].text) : '';
+            if (wordsToDraw.length === 0) {
+                const rawLines = ($('#input').val() || '').split('\n').map(l => l.trim());
+                const lineFromInput = rawLines[validSrcIdx] || rawLines.find(l => l.length > 0) || 'a';
+                const tokens = lineFromInput.split(/\s+/).filter(w => w.length > 0);
+                wordsToDraw = (tokens.length > 0 ? tokens : ['a']).map(w => ({
+                    text: model.getUnicodeStr(w),
+                    raw: w,
+                    offsetLeft: 0,
+                    stretch: 1.0
+                }));
+                rawLineText = wordsToDraw[0].raw;
+            }
+            const charUnit = model.getFirstCharUnit(rawLineText);
+            const activeDotConfig = exportEngine.getActiveDotConfig(charUnit, validSrcIdx, 0);
+            let hasDotConfigs = !!(activeDotConfig && activeDotConfig.dots && activeDotConfig.dots.length > 0);
+            if (!hasDotConfigs && wordsToDraw.length > 1) {
+                for (let wIdx = 1; wIdx < wordsToDraw.length; wIdx++) {
+                    const wInfo = wordsToDraw[wIdx];
+                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                    const wDotCfg = exportEngine.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                        hasDotConfigs = true;
+                        break;
+                    }
+                }
+            }
+            const outlineInfo = exportEngine.parseOutlineOption(lineDotConfig.outline);
+
+            const olyUnitPx = isSmall ? 9.6 : 19.2;
+            const blockWidth = 76.8;
+            const dotRadius = isSmall ? 1.25 : 1.75;
+
+            const wordOffset = wordsToDraw.length > 0 ? wordsToDraw[0].offsetLeft : 0;
+            const firstStretch = wordsToDraw.length > 0 && wordsToDraw[0].stretch ? wordsToDraw[0].stretch : 1.0;
+            const baseWordX = gridOriginX + wordOffset;
+
+            if (hasDotConfigs || outlineInfo.isEnabled) {
+                for (let j = 0; j < lineDotConfig.repetitions; j++) {
+                    if (hasText || lineDotConfig.fullDot || j === 0) {
+                        const shiftX = j * blockWidth * lineDotConfig.spaces;
+
+                        // A. Outline copies
+                        if (outlineInfo.isEnabled) {
+                            const isCopy = (!hasText || j > 0);
+                            if (isCopy) {
+                                const isDotted = (outlineInfo.style === 'dotted');
+                                const isFaint = (outlineInfo.style === 'faint');
+                                const isCurve = (outlineInfo.style === 'curve');
+
+                                let fillAttr = 'fill="rgba(43, 16, 85, 0.32)"';
+                                let strokeAttr = '';
+                                let fontFam = 'HP001, serif';
+
+                                if (isDotted) {
+                                    fontFam = 'HP001TD, serif';
+                                    fillAttr = 'fill="rgba(43, 16, 85, 0.65)"';
+                                } else if (isFaint) {
+                                    fontFam = 'HP001, serif';
+                                    fillAttr = 'fill="rgba(43, 16, 85, 0.32)"';
+                                } else {
+                                    fontFam = 'HP001, serif';
+                                    fillAttr = 'fill="none"';
+                                    strokeAttr = `stroke="rgba(43, 16, 85, 0.42)" stroke-width="${isSmall ? '0.8' : '1.0'}"`;
+                                }
+
+                                if (outlineInfo.scope === 'first') {
+                                    const xPos = baseWordX + shiftX;
+                                    const w0 = wordsToDraw[0];
+                                    const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
+                                    const escapedText = exportEngine.escapeXml(textToDraw);
+                                    const word0Weight = w0 ? w0.weight : null;
+                                    const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
+                                    const weightAttr = (!isDotted && firstWordIsBold) ? 'bold' : 'normal';
+
+                                    if (firstStretch && firstStretch !== 1.0) {
+                                        dottingSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${firstStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
+                                    } else {
+                                        dottingSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
+                                    }
+                                } else if (outlineInfo.scope === 'all') {
+                                    wordsToDraw.forEach(w => {
+                                        const xPos = gridOriginX + w.offsetLeft + shiftX;
+                                        const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
+                                        const escapedText = exportEngine.escapeXml(textToDraw);
+                                        const wordIsBold = w.weight === 'bold' ? true : (wordIsBold === 'normal' ? false : isBold);
+                                        const weightAttr = (!isDotted && wordIsBold) ? 'bold' : 'normal';
+
+                                        if (w.stretch && w.stretch !== 1.0) {
+                                            dottingSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${w.stretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
+                                        } else {
+                                            dottingSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+
+                        // B. Guide dots
+                        if (hasDotConfigs) {
+                            if (wordsToDraw && wordsToDraw.length > 0) {
+                                wordsToDraw.forEach((wInfo, wIdx) => {
+                                    const wChar = model.getFirstCharUnit(wInfo.raw || wInfo.text);
+                                    const wDotCfg = exportEngine.getActiveDotConfig(wChar, validSrcIdx, wIdx);
+                                    if (wDotCfg && Array.isArray(wDotCfg.dots) && wDotCfg.dots.length > 0) {
+                                        const wBaseX = gridOriginX + wInfo.offsetLeft;
+                                        const wStretch = wInfo.stretch || 1.0;
+                                        for (const dot of wDotCfg.dots) {
+                                            const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
+                                            const dotY = yPos - (dot.y * olyUnitPx);
+                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                        }
+                                    }
+                                });
+                            } else if (activeDotConfig && Array.isArray(activeDotConfig.dots) && activeDotConfig.dots.length > 0) {
+                                for (const dot of activeDotConfig.dots) {
+                                    const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
+                                    const dotY = yPos - (dot.y * olyUnitPx);
+                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    const slantTransform = isItalics ? `transform="skewX(-17)"` : '';
+
+    const svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}">
+<defs>
+${fontDefs}
+</defs>
+<rect width="${widthPx}" height="${heightPx}" fill="#ffffff" />
+<g id="grid-layer">
+${linesSvg}
+</g>
+<g id="text-layer" ${slantTransform}>
+${textSvg}
+${dottingSvg}
+</g>
+</svg>`;
+
+    const firstText = pageTexts[0] || 'chu_dep';
+    const pageSuffix = totalBoards > 1 ? `_p${pIdx + 1}` : '';
+    const fileName = exportEngine.generateFileName('white_14x20' + pageSuffix, firstText, 'svg');
+
+    return { svgString, fileName };
+};
+
+exportEngine.exportWhite14x20ToPng = async function (customScale) {
+    const $boards = $('.board.white_14x20');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    for (let i = 0; i < $boards.length; i++) {
+        const { canvas, fileName } = await exportEngine.renderWhite14x20PageToCanvas($boards[i], i, customScale, $boards.length);
+        await exportEngine.downloadCanvasAsPng(canvas, fileName);
+        if (i < $boards.length - 1) {
+            await new Promise(r => setTimeout(r, 400));
+        }
+    }
+};
+
+exportEngine.exportWhite14x20ToPdf = async function (customScale) {
+    const $boards = $('.board.white_14x20');
+    if (!$boards.length) return;
+
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('Thư viện jsPDF chưa tải xong. Vui lòng thử lại sau giây lát!');
+        return;
+    }
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+    });
+
+    const targetW = 200;
+    const targetH = targetW / (1113.6 / 1612.8);
+    const offsetX = (210 - targetW) / 2;
+    const offsetY = (297 - targetH) / 2;
+
+    let baseFileName = '';
+
+    for (let i = 0; i < $boards.length; i++) {
+        if (i > 0) {
+            pdf.addPage('a4', 'portrait');
+        }
+        const { canvas, firstText } = await exportEngine.renderWhite14x20PageToCanvas($boards[i], i, customScale, $boards.length);
+        if (!baseFileName) {
+            baseFileName = exportEngine.generateFileName('white_14x20', firstText, 'pdf');
+        }
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', offsetX, offsetY, targetW, targetH, undefined, 'FAST');
+    }
+
+    pdf.save(baseFileName || 'white_14x20.pdf');
+};
+
+exportEngine.exportWhite14x20ToSvg = async function () {
+    const $boards = $('.board.white_14x20');
+    if (!$boards.length) return;
+
+    if (document.fonts) {
+        try {
+            await Promise.all([
+                document.fonts.load('16px HP001'),
+                document.fonts.load('16px HP001TD'),
+                document.fonts.ready
+            ]);
+        } catch (_) {}
+    }
+
+    for (let i = 0; i < $boards.length; i++) {
+        const { svgString, fileName } = await exportEngine.renderWhite14x20PageToSvg($boards[i], i, $boards.length);
+        await exportEngine.downloadSvg(svgString, fileName);
+        if (i < $boards.length - 1) {
+            await new Promise(r => setTimeout(r, 400));
+        }
+    }
+};
+
+/* ==========================================================================
    STANDARD INFINITE BOARD EXPORT (PNG, PDF, SVG)
    ========================================================================== */
 
@@ -2206,9 +2884,14 @@ exportEngine.exportToPng = async function (customScale) {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
 
     if (isBlackboard) {
         await exportEngine.exportBlackboardToPng(customScale);
+        return;
+    }
+    if (isWhite14x20) {
+        await exportEngine.exportWhite14x20ToPng(customScale);
         return;
     }
     if (isWhite11x14) {
@@ -2222,9 +2905,14 @@ exportEngine.exportToPdf = async function (customScale) {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
 
     if (isBlackboard) {
         await exportEngine.exportBlackboardToPdf(customScale);
+        return;
+    }
+    if (isWhite14x20) {
+        await exportEngine.exportWhite14x20ToPdf(customScale);
         return;
     }
     if (isWhite11x14) {
@@ -2238,9 +2926,14 @@ exportEngine.exportToSvg = async function () {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
 
     if (isBlackboard) {
         await exportEngine.exportBlackboardToSvg();
+        return;
+    }
+    if (isWhite14x20) {
+        await exportEngine.exportWhite14x20ToSvg();
         return;
     }
     if (isWhite11x14) {

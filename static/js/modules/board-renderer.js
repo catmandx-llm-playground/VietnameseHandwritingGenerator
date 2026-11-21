@@ -13,8 +13,9 @@ boardRenderer.syncInfiniteCanvasWidth = function () {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
 
-    if (isBlackboard || isWhite11x14) return;
+    if (isBlackboard || isWhite11x14 || isWhite14x20) return;
 
     const $result = $('#result');
     if (!$result.length) return;
@@ -130,8 +131,8 @@ boardRenderer.syncNormalBoard = function () {
     const $container = $('.board-container');
     const $boards = $container.children('.board');
 
-    // If multiple boards exist, or the single board is blackboard or white_11x14, replace with single normal board
-    if ($boards.length !== 1 || $boards.hasClass('blackboard') || $boards.hasClass('white_11x14') || $boards.hasClass('white_10x14')) {
+    // If multiple boards exist, or the single board is blackboard or white_11x14 or white_14x20, replace with single normal board
+    if ($boards.length !== 1 || $boards.hasClass('blackboard') || $boards.hasClass('white_11x14') || $boards.hasClass('white_10x14') || $boards.hasClass('white_14x20')) {
         $container.empty();
         const currentColor = $('#board-color-select').val() || 'black';
         const isBold = $('#weight-checkbox').is(':checked');
@@ -187,6 +188,104 @@ boardRenderer.syncWhite11x14 = function (linesData) {
             $container.append($newPage);
         }
         $existingBoards = $container.children('.board.white_11x14, .board.white_10x14');
+    }
+
+    // 3. Populate lines for each page
+    $existingBoards.each(function (pIdx, boardEl) {
+        const $board = $(boardEl);
+        $board.attr('data-page-idx', pIdx);
+        if (isItalics) {
+            $board.addClass('italics');
+            $board.find('.grid').addClass('italics');
+        } else {
+            $board.removeClass('italics');
+            $board.find('.grid').removeClass('italics');
+        }
+
+        const $resultText = $board.find('.result-text, #result');
+        if (pIdx === 0) {
+            $resultText.attr('id', 'result');
+        } else {
+            $resultText.attr('id', 'result-p' + pIdx);
+        }
+
+        if (isSmall) {
+            $resultText.addClass('small');
+        } else {
+            $resultText.removeClass('small');
+        }
+
+        if (isBold) {
+            $resultText.addClass('bold');
+        } else {
+            $resultText.removeClass('bold');
+        }
+        $resultText.css('color', color);
+
+        const startLineIdx = pIdx * linesPerPage;
+        const endLineIdx = Math.min(startLineIdx + linesPerPage, linesData.length);
+        const pageLinesData = linesData.slice(startLineIdx, endLineIdx);
+
+        let $existingLines = $resultText.children('p.line');
+        if ($existingLines.length > pageLinesData.length) {
+            $existingLines.slice(pageLinesData.length).remove();
+            $existingLines = $resultText.children('p.line');
+        }
+        if ($existingLines.length < pageLinesData.length) {
+            for (let l = $existingLines.length; l < pageLinesData.length; l++) {
+                const globalLineIdx = startLineIdx + l;
+                const $newLine = $(`<p class="line" id="line-${globalLineIdx}"></p>`);
+                $resultText.append($newLine);
+            }
+            $existingLines = $resultText.children('p.line');
+        }
+
+        $existingLines.each(function (lIdx, lineEl) {
+            const globalLineIdx = startLineIdx + lIdx;
+            const $line = $(lineEl);
+            $line.attr('id', 'line-' + globalLineIdx);
+            boardRenderer.renderLineElement($line, pageLinesData[lIdx] || [], globalLineIdx);
+        });
+    });
+};
+
+boardRenderer.syncWhite14x20 = function (linesData) {
+    const $container = $('.board-container');
+    let $existingBoards = $container.children('.board.white_14x20');
+
+    if ($container.children('.board:not(.white_14x20)').length > 0) {
+        $container.empty();
+        $existingBoards = $();
+    }
+
+    const isSmall = $('#font-size-select').val() === '37' || $('#font-size-select').val() === '36' || $('#result').hasClass('small');
+    const isBold = $('#weight-checkbox').is(':checked');
+    const color = $('#font-color-input').val() || '#2b1055';
+    const isItalics = $('#style-checkbox').is(':checked');
+
+    const linesPerPage = isSmall ? 20 : 10;
+    const totalPages = Math.max(1, Math.ceil(linesData.length / linesPerPage));
+
+    // 1. Remove excess pages
+    if ($existingBoards.length > totalPages) {
+        $existingBoards.slice(totalPages).remove();
+        $existingBoards = $container.children('.board.white_14x20');
+    }
+
+    // 2. Add missing pages
+    if ($existingBoards.length < totalPages) {
+        for (let p = $existingBoards.length; p < totalPages; p++) {
+            const idAttr = p === 0 ? 'id="result"' : `id="result-p${p}"`;
+            const $newPage = $(`
+                <div class="board white white_14x20 ${isItalics ? 'italics' : ''}" data-page-idx="${p}">
+                    <div class="grid ${isItalics ? 'italics' : ''}">
+                        <div class="result-text ${isSmall ? 'small' : ''} ${isBold ? 'bold' : ''}" ${idAttr} style="color: ${color};"></div>
+                    </div>
+                </div>
+            `);
+            $container.append($newPage);
+        }
+        $existingBoards = $container.children('.board.white_14x20');
     }
 
     // 3. Populate lines for each page
@@ -477,6 +576,7 @@ boardRenderer.render = function () {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
     let rawLines = $input.val().split('\n');
 
     const hasAnyText = $input.val().trim().length > 0;
@@ -556,6 +656,8 @@ boardRenderer.render = function () {
         boardRenderer.adjustBlackboardFontSize();
     } else if (isWhite11x14) {
         boardRenderer.syncWhite11x14(linesData);
+    } else if (isWhite14x20) {
+        boardRenderer.syncWhite14x20(linesData);
     } else {
         boardRenderer.syncNormalBoard();
         const $result = $('#result');

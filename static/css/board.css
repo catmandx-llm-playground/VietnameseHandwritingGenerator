@@ -145,20 +145,21 @@
 }
 
 /*
- * WHITEBOARD 11x14 (NOTEBOOK PAGE) ARCHITECTURE:
- * Clone of the whiteboard constrained to 11 blocks wide x 14 blocks tall.
+ * WHITEBOARD 11x14 & 14x20 (NOTEBOOK PAGE) ARCHITECTURE:
+ * Clone of the whiteboard constrained to fixed blocks wide x fixed blocks tall.
  * 1 block = 4x4 little cells (var(--grid-size) = 4 * var(--grid-unit) = 76.8px).
  * 1 little cell = var(--grid-unit) = 14.4pt = 19.2px.
  * Buffer: 2 little cells above & below, 1 little cell left & right.
- * Total width: 1 + 44 + 1 = 46 little cells = 883.2px.
- * Total height: 2 + 56 + 2 = 60 little cells = 1152px.
+ * 11x14:
+ *   Total width: 1 + 44 + 1 = 46 little cells = 883.2px.
+ *   Total height: 2 + 56 + 2 = 60 little cells = 1152px.
+ * 14x20:
+ *   Total width: 1 + 56 + 1 = 58 little cells = 1113.6px.
+ *   Total height: 2 + 80 + 2 = 84 little cells = 1612.8px.
  */
 .board.white_11x14,
-.board.white_10x14 {
-    width: 883.2px;
-    height: 1152px;
-    min-width: 883.2px;
-    min-height: 1152px;
+.board.white_10x14,
+.board.white_14x20 {
     max-width: 100%;
     margin: 12px auto 24px auto;
     background-color: #ffffff;
@@ -171,12 +172,43 @@
     box-sizing: content-box;
 }
 
+.board.white_11x14,
+.board.white_10x14 {
+    width: 883.2px;
+    height: 1152px;
+    min-width: 883.2px;
+    min-height: 1152px;
+}
+
+.board.white_14x20 {
+    width: 1113.6px;
+    height: 1612.8px;
+    min-width: 1113.6px;
+    min-height: 1612.8px;
+}
+
 .board.white_11x14 .grid,
 .board.white_10x14 .grid {
     width: 883.2px;
     height: 1152px;
     min-width: 883.2px;
     min-height: 1152px;
+    padding: 0;
+    margin: 0;
+    position: relative;
+    overflow: hidden;
+    transform: none;
+    background-size: var(--grid-size) calc(var(--grid-unit) * 20);
+    /* 1 cell buffer left (19.2px), 2 cells buffer top (38.4px) */
+    background-position: var(--grid-unit) calc(var(--grid-unit) * 2);
+    background-repeat: repeat;
+}
+
+.board.white_14x20 .grid {
+    width: 1113.6px;
+    height: 1612.8px;
+    min-width: 1113.6px;
+    min-height: 1612.8px;
     padding: 0;
     margin: 0;
     position: relative;
@@ -197,10 +229,20 @@
     transform-origin: 0 0;
 }
 
+.board.white_14x20 .grid.italics {
+    width: 1800px;
+    -webkit-transform: skewX(-17deg);
+    transform: skewX(-17deg);
+    -webkit-transform-origin: 0 0;
+    transform-origin: 0 0;
+}
+
 .board.white_11x14 #result,
 .board.white_11x14 .result-text,
 .board.white_10x14 #result,
-.board.white_10x14 .result-text {
+.board.white_10x14 .result-text,
+.board.white_14x20 #result,
+.board.white_14x20 .result-text {
     position: absolute;
     left: var(--grid-unit);
     top: 0;
@@ -224,7 +266,9 @@
 .board.white_11x14 #result > p.line,
 .board.white_11x14 .result-text > p.line,
 .board.white_10x14 #result > p.line,
-.board.white_10x14 .result-text > p.line {
+.board.white_10x14 .result-text > p.line,
+.board.white_14x20 #result > p.line,
+.board.white_14x20 .result-text > p.line {
     height: calc(var(--grid-unit) * 8) !important;
     max-height: calc(var(--grid-unit) * 8) !important;
     min-height: 0 !important;
@@ -240,7 +284,9 @@
 .board.white_11x14 #result.small,
 .board.white_11x14 .result-text.small,
 .board.white_10x14 #result.small,
-.board.white_10x14 .result-text.small {
+.board.white_10x14 .result-text.small,
+.board.white_14x20 #result.small,
+.board.white_14x20 .result-text.small {
     grid-auto-rows: calc(var(--grid-unit) * 4);
     font-size: 37pt;
     line-height: calc(var(--grid-unit) * 4);
@@ -250,7 +296,9 @@
 .board.white_11x14 #result.small > p.line,
 .board.white_11x14 .result-text.small > p.line,
 .board.white_10x14 #result.small > p.line,
-.board.white_10x14 .result-text.small > p.line {
+.board.white_10x14 .result-text.small > p.line,
+.board.white_14x20 #result.small > p.line,
+.board.white_14x20 .result-text.small > p.line {
     height: calc(var(--grid-unit) * 4) !important;
     max-height: calc(var(--grid-unit) * 4) !important;
     min-height: 0 !important;
@@ -265,7 +313,9 @@
 .board.white_11x14 p.line::after,
 .board.white_11x14 .result-text > p.line::after,
 .board.white_10x14 p.line::after,
-.board.white_10x14 .result-text > p.line::after {
+.board.white_10x14 .result-text > p.line::after,
+.board.white_14x20 p.line::after,
+.board.white_14x20 .result-text > p.line::after {
     display: none !important;
     content: none !important;
 }
@@ -890,7 +940,8 @@ body.is-word-stretching {
     .white .grid,
     .board.white .grid,
     .board.white_11x14 .grid,
-    .board.white_10x14 .grid {
+    .board.white_10x14 .grid,
+    .board.white_14x20 .grid {
         --grid-major-color: rgba(60, 75, 115, 0.9) !important;
         --grid-minor-color: rgba(90, 115, 165, 0.7) !important;
     }
@@ -919,6 +970,17 @@ body.is-word-stretching {
         height: 1152px !important;
         min-width: 883.2px !important;
         min-height: 1152px !important;
+        background-color: #ffffff !important;
+        page-break-after: always;
+        break-after: page;
+        margin: 0 auto 24px auto !important;
+    }
+
+    .board.white_14x20 {
+        width: 1113.6px !important;
+        height: 1612.8px !important;
+        min-width: 1113.6px !important;
+        min-height: 1612.8px !important;
         background-color: #ffffff !important;
         page-break-after: always;
         break-after: page;

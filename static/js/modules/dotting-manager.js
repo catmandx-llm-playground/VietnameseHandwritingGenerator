@@ -237,6 +237,7 @@ dottingManager.getDottingConfig = function (lineIndex, $lineEl) {
     const layout = $('#board-color-select').val();
     const isBlackboard = (layout === 'blackboard');
     const isWhite11x14 = (layout === 'white_11x14' || layout === 'white_10x14');
+    const isWhite14x20 = (layout === 'white_14x20');
 
     const isAllSelected = ($('#dotting-line-select').val() === 'all' || !$('#dotting-line-select').val());
 
@@ -278,7 +279,9 @@ dottingManager.getDottingConfig = function (lineIndex, $lineEl) {
     const color = $('#dotting-color-input').val() || '#e53935';
 
     let globalReps;
-    if (isWhite11x14) {
+    if (isWhite14x20) {
+        globalReps = Math.min(14, Math.max(1, Math.floor(15 / globalSpaces)));
+    } else if (isWhite11x14) {
         globalReps = Math.min(11, Math.max(1, Math.floor(12 / globalSpaces)));
     } else if (isBlackboard) {
         globalReps = Math.min(3, Math.max(1, Math.floor(4 / globalSpaces)));
@@ -300,7 +303,9 @@ dottingManager.getDottingConfig = function (lineIndex, $lineEl) {
         }
 
         let reps;
-        if (isWhite11x14) {
+        if (isWhite14x20) {
+            reps = Math.min(14, Math.max(1, Math.floor(15 / spaces)));
+        } else if (isWhite11x14) {
             reps = Math.min(11, Math.max(1, Math.floor(12 / spaces)));
         } else if (isBlackboard) {
             reps = Math.min(3, Math.max(1, Math.floor(4 / spaces)));
@@ -321,6 +326,7 @@ dottingManager.getDottingConfig = function (lineIndex, $lineEl) {
             color: color,
             isBlackboard: isBlackboard,
             isWhite11x14: isWhite11x14,
+            isWhite14x20: isWhite14x20,
             isCustom: !!lineCfg.isCustom
         };
     }
@@ -335,6 +341,7 @@ dottingManager.getDottingConfig = function (lineIndex, $lineEl) {
         color: color,
         isBlackboard: isBlackboard,
         isWhite11x14: isWhite11x14,
+        isWhite14x20: isWhite14x20,
         isCustom: (dottingManager.userCustomGlobalSpaces !== undefined && dottingManager.userCustomGlobalSpaces !== null) || (dottingManager.userCustomGlobalLinesCount !== undefined && dottingManager.userCustomGlobalLinesCount !== null)
     };
 };
@@ -343,6 +350,7 @@ dottingManager.updateDottingControlsState = function () {
     const layout = $('#board-color-select').val();
     const isBlackboard = (layout === 'blackboard');
     const isWhite11x14 = (layout === 'white_11x14' || layout === 'white_10x14');
+    const isWhite14x20 = (layout === 'white_14x20');
 
     const selectedLine = $('#dotting-line-select').val();
     let spaces, reps, linesCount;
@@ -382,7 +390,11 @@ dottingManager.updateDottingControlsState = function () {
     const $repsInput = $('#dotting-reps-input');
     const $repsBadge = $('#dotting-reps-badge');
 
-    if (isWhite11x14) {
+    if (isWhite14x20) {
+        const autoReps = Math.min(14, Math.max(1, Math.floor(15 / spaces)));
+        $repsInput.val(autoReps).prop('disabled', true);
+        $repsBadge.text(`Tự động: ${autoReps}`).attr('title', 'Tính tự động theo chiều rộng 14 ô của trang');
+    } else if (isWhite11x14) {
         const autoReps = Math.min(11, Math.max(1, Math.floor(12 / spaces)));
         $repsInput.val(autoReps).prop('disabled', true);
         $repsBadge.text(`Tự động: ${autoReps}`).attr('title', 'Tính tự động theo chiều rộng 11 ô của trang');

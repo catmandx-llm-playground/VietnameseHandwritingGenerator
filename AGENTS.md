@@ -36,7 +36,7 @@
   - `.word-space` must be `display: inline-block;` (never unconstrained `display: inline`, which causes font-leading inflation with tall Vietnamese diacritics).
   - Floating controls, popovers, and outline/dot layers must be positioned absolutely (`position: absolute`) with `pointer-events` properly scoped.
   - `<p class="line">` must have `box-sizing: border-box; margin: 0; padding: 0;`.
-- **Guideline Centering Invariant**: The bottom edge/curve of glyphs (baseline) MUST sit directly in the middle (vertical midpoint) of the 1.5px major horizontal guideline across all layouts (72pt and 37pt), never on its top or bottom edge. Container `padding-top` calibrations (`calc(var(--grid-unit) * 0.7 - 1.25px)` for 72pt, `calc(var(--grid-unit) * 3.32 - 0.4px)` for 37pt on normal infinite boards; and `calc(var(--grid-unit) * 0.2 + 8.75px)` / `calc(var(--grid-unit) * 3.34 - 0.4px)` on 11x14) are calibrated to center the stroke through the guideline stroke thickness. Do not arbitrarily alter these calibrations.
+- **Guideline Centering Invariant**: The bottom edge/curve of glyphs (baseline) MUST sit directly in the middle (vertical midpoint) of the 1.5px major horizontal guideline across all layouts (72pt and 37pt), never on its top or bottom edge. Container `padding-top` calibrations (`calc(var(--grid-unit) * 0.7 - 1.25px)` for 72pt, `calc(var(--grid-unit) * 3.32 - 0.4px)` for 37pt on normal infinite boards; and `calc(var(--grid-unit) * 0.2 + 8.75px)` / `calc(var(--grid-unit) * 3.34 - 0.4px)` on 11x14 and 14x20) are calibrated to center the stroke through the guideline stroke thickness. Do not arbitrarily alter these calibrations.
 
 ## Blackboard Layout & Isolation Invariant
 - **Single-Line Absolute Architecture**: The mini blackboard (`.board.blackboard`) does NOT use CSS Grid row tracks. It renders 1 line of text per board anchored on Line 1 ($y = 408.05\text{px}$) inside an 842px x 595px SVG vector frame.
@@ -46,8 +46,11 @@
   - `.word, .word-text, .word-space` inside `.board.blackboard` must have `line-height: 1 !important; vertical-align: baseline !important;`.
   - **Never apply CSS Grid multiline line-height capping (`76.8px` or `153.6px`) to `.board.blackboard`**, as this applies negative half-leading to the large font ($144.66\text{px}$ / $281.5\text{px}$), shifting the text $34\text{px}$–$68\text{px}$ above the guideline and displacing italicized text horizontally.
 
-## 11x14 Notebook Layout Export Metrics & Invariants
-- **Scope Isolation**: Export rendering logic (Canvas PNG/PDF via `exportEngine.exportWhite11x14ToPng` and SVG via `exportEngine.renderWhite11x14PageToSvg` in `static/js/modules/export-engine.js`) is completely isolated from on-screen DOM styles (`.board.white_11x14`, `.grid`, `.guide-dot`). Changes to export boldness or dot sizes do not mutate web view presentation.
+## 11x14 & 14x20 Notebook Layout Export Metrics & Invariants
+- **Scope Isolation**: Export rendering logic (Canvas PNG/PDF via `exportEngine.exportWhite11x14ToPng` / `exportEngine.exportWhite14x20ToPng` and SVG via `exportEngine.renderWhite11x14PageToSvg` / `exportEngine.renderWhite14x20PageToSvg` in `static/js/modules/export-engine.js`) is completely isolated from on-screen DOM styles (`.board.white_11x14`, `.board.white_14x20`, `.grid`, `.guide-dot`). Changes to export boldness or dot sizes do not mutate web view presentation.
+- **Grid Dimensions**:
+  - 11x14: 11 blocks x 14 blocks, total 883.2px x 1152px (7 lines in 72pt, 14 lines in 37pt).
+  - 14x20: 14 blocks x 20 blocks, total 1113.6px x 1612.8px (10 lines in 72pt, 20 lines in 37pt).
 - **Grid Thickness Constants**:
   - `gridLineWidthMajor = 1.4;` (30% reduction from 2.0 baseline)
   - `gridLineWidthMinor = 0.7;` (30% reduction from 1.0 baseline)

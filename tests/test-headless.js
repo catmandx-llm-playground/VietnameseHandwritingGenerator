@@ -217,6 +217,33 @@ async function runHeadlessTests() {
   console.log(`  ✅ 11x14 notebook layout active: ${notebookCheck.boardWidth}px width`);
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'test_04_notebook_11x14.png') });
 
+  // 6b. 14x20 Notebook Layout Switch
+  console.log('\n🔍 Testing 14x20 Notebook layout switch...');
+  await page.evaluate(() => {
+    const select = document.getElementById('board-color-select');
+    select.value = 'white_14x20';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await new Promise(r => setTimeout(r, 600));
+
+  const notebook14x20Check = await page.evaluate(() => {
+    const board = document.querySelector('.board.white_14x20');
+    return {
+      hasWhite14x20Class: !!board,
+      boardWidth: board?.offsetWidth,
+      boardHeight: board?.offsetHeight
+    };
+  });
+  console.log('  14x20 Notebook Metrics:', notebook14x20Check);
+  if (!notebook14x20Check.hasWhite14x20Class) {
+    throw new Error('Board failed to apply .board.white_14x20 class');
+  }
+  if (Math.abs(notebook14x20Check.boardWidth - 1115.6) > 3) {
+    throw new Error(`Expected board width ~1115.6px, got ${notebook14x20Check.boardWidth}`);
+  }
+  console.log(`  ✅ 14x20 notebook layout active: ${notebook14x20Check.boardWidth}px width, ${notebook14x20Check.boardHeight}px height`);
+  await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'test_04b_notebook_14x20.png') });
+
   // Switch back to normal white board
   await page.evaluate(() => {
     const select = document.getElementById('board-color-select');

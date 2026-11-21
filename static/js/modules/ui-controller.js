@@ -30,10 +30,11 @@ uiController.changeFontSize = function (fontSize) {
     const layout = $('#board-color-select').val();
     const isBlackboard = layout ? (layout === 'blackboard') : $('.board').hasClass('blackboard');
     const isWhite11x14 = layout ? (layout === 'white_11x14' || layout === 'white_10x14') : ($('.board').hasClass('white_11x14') || $('.board').hasClass('white_10x14'));
+    const isWhite14x20 = layout ? (layout === 'white_14x20') : $('.board').hasClass('white_14x20');
 
     if (isBlackboard) {
         boardRenderer.adjustBlackboardFontSize();
-    } else if (isWhite11x14) {
+    } else if (isWhite11x14 || isWhite14x20) {
         boardRenderer.render();
     } else {
         $results.css({ 'font-size': '', 'top': '' });
@@ -57,11 +58,11 @@ uiController.changeBoardColor = function (boardColor) {
     if (boardColor === "white") {
         boardRenderer.syncNormalBoard();
         const $board = $(".board");
-        $board.removeClass('blackboard black white_11x14 white_10x14').addClass('white');
+        $board.removeClass('blackboard black white_11x14 white_10x14 white_14x20').addClass('white');
         const paperInk = "#2b1055";
         $colorInput.val(paperInk);
         $('.result-text, #result').css({ 'color': paperInk, 'font-size': '', 'top': '', 'left': '', 'position': '', 'width': '', 'min-width': '', 'white-space': '' });
-    } else if (boardColor === "white_11x14" || boardColor === "white_10x14") {
+    } else if (boardColor === "white_11x14" || boardColor === "white_10x14" || boardColor === "white_14x20") {
         const paperInk = "#2b1055";
         $colorInput.val(paperInk);
     } else if (boardColor === "blackboard") {
@@ -72,7 +73,7 @@ uiController.changeBoardColor = function (boardColor) {
     } else {
         boardRenderer.syncNormalBoard();
         const $board = $(".board");
-        $board.removeClass('blackboard white white_11x14 white_10x14').addClass('black');
+        $board.removeClass('blackboard white white_11x14 white_10x14 white_14x20').addClass('black');
         const chalkWhite = "#ffffff";
         $colorInput.val(chalkWhite);
         $('.result-text, #result').css({ 'color': chalkWhite, 'font-size': '', 'top': '', 'left': '', 'position': '', 'width': '', 'min-width': '', 'white-space': '' });
