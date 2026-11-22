@@ -52,8 +52,8 @@
   - 11x14: 11 blocks x 14 blocks, total 883.2px x 1152px (7 lines in 72pt, 14 lines in 37pt).
   - 14x20: 14 blocks x 20 blocks, total 1113.6px x 1612.8px (10 lines in 72pt, 20 lines in 37pt).
 - **Grid Thickness Constants**:
-  - `gridLineWidthMajor = 1.4;` (30% reduction from 2.0 baseline)
-  - `gridLineWidthMinor = 0.7;` (30% reduction from 1.0 baseline)
+  - 11x14: `gridLineWidthMajor = 1.4;`, `gridLineWidthMinor = 0.7;` (30% reduction from 2.0 baseline)
+  - 14x20: `gridLineWidthMajor = 1.82;`, `gridLineWidthMinor = 0.91;` (30% thicker than 1.4/0.7 baseline, export only)
   - Colors: `majorColor = 'rgba(60, 75, 115, 0.9)'`, `minorColor = 'rgba(90, 115, 165, 0.7)'`.
 - **Guide Dot Radius Constants**:
   - `dotRadius = isSmall ? 1.25 : 1.75;` (50% reduction from 2.5 / 3.5 baseline).

@@ -175,8 +175,9 @@ Trong `static/js/modules/export-engine.js`:
 - Kích thước trang:
   - Vở 11x14: 11 khối x 14 khối = 883.2px x 1152px (7 dòng 72pt, 14 dòng 37pt).
   - Vở 14x20: 14 khối x 20 khối = 1113.6px x 1612.8px (10 dòng 72pt, 20 dòng 37pt).
-- `gridLineWidthMajor = 1.4;` (đường kẻ chính, giảm 30% so với gốc 2.0).
-- `gridLineWidthMinor = 0.7;` (đường kẻ phụ, giảm 30% so với gốc 1.0).
+- Độ dày đường kẻ khi xuất file:
+  - Vở 11x14: `gridLineWidthMajor = 1.4;`, `gridLineWidthMinor = 0.7;`.
+  - Vở 14x20: `gridLineWidthMajor = 1.82;`, `gridLineWidthMinor = 0.91;` (dày hơn 30% khi xuất).
 - `majorColor = 'rgba(60, 75, 115, 0.9)'`, `minorColor = 'rgba(90, 115, 165, 0.7)'`.
 - `dotRadius = isSmall ? 1.25 : 1.75;` (bán kính chấm mẫu xuất file).
 

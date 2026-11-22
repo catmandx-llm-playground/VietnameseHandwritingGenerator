@@ -1516,8 +1516,8 @@ exportEngine.renderWhite14x20PageToCanvas = async function (boardEl, pIdx, custo
     // 2. Draw Grid Lines
     const majorColor = 'rgba(60, 75, 115, 0.9)';
     const minorColor = 'rgba(90, 115, 165, 0.7)';
-    const gridLineWidthMajor = 1.4;
-    const gridLineWidthMinor = 0.7;
+    const gridLineWidthMajor = 1.82;
+    const gridLineWidthMinor = 0.91;
 
     for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
         const k = Math.round((y - gridOriginY) / subGridPx);
@@ -1808,8 +1808,8 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
     // 1. Grid Lines
     const majorColor = 'rgba(60, 75, 115, 0.9)';
     const minorColor = 'rgba(90, 115, 165, 0.7)';
-    const gridLineWidthMajor = 1.4;
-    const gridLineWidthMinor = 0.7;
+    const gridLineWidthMajor = 1.82;
+    const gridLineWidthMinor = 0.91;
 
     let linesSvg = '';
     for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {

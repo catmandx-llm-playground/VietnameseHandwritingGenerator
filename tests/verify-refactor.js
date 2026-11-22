@@ -150,8 +150,10 @@ async function runTests() {
     // 4. 11x14 & 14x20 Notebook Layout Invariants in board.css & export-engine.js
     assert(boardCss.includes('.board.white_14x20') && boardCss.includes('1113.6px') && boardCss.includes('1612.8px'), '14x20 Notebook layout geometry (1113.6px x 1612.8px) present in board.css');
     const exportJs = fs.readFileSync(path.join(projectRoot, 'static/js/modules/export-engine.js'), 'utf-8');
-    assert(exportJs.includes('gridLineWidthMajor = 1.4;'), 'Export gridLineWidthMajor calibrated to 1.4');
-    assert(exportJs.includes('gridLineWidthMinor = 0.7;'), 'Export gridLineWidthMinor calibrated to 0.7');
+    assert(exportJs.includes('gridLineWidthMajor = 1.4;'), 'Export gridLineWidthMajor (11x14) calibrated to 1.4');
+    assert(exportJs.includes('gridLineWidthMinor = 0.7;'), 'Export gridLineWidthMinor (11x14) calibrated to 0.7');
+    assert(exportJs.includes('gridLineWidthMajor = 1.82;'), 'Export gridLineWidthMajor (14x20) calibrated to 1.82 (+30%)');
+    assert(exportJs.includes('gridLineWidthMinor = 0.91;'), 'Export gridLineWidthMinor (14x20) calibrated to 0.91 (+30%)');
     assert(exportJs.includes("majorColor = 'rgba(60, 75, 115, 0.9)'"), 'Export majorColor calibrated to rgba(60, 75, 115, 0.9)');
     assert(exportJs.includes("minorColor = 'rgba(90, 115, 165, 0.7)'"), 'Export minorColor calibrated to rgba(90, 115, 165, 0.7)');
     assert(exportJs.includes('dotRadius = isSmall ? 1.25 : 1.75;'), 'Export dotRadius calibrated to 1.25 / 1.75');
