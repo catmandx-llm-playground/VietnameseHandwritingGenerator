@@ -167,3 +167,31 @@ gantt
 1. **Physical Scale Invariant:** Printing via `Ctrl + P` with "Actual Size / 100%" MUST produce exactly $10.0\text{ mm} \pm 0.2\text{ mm}$ per 4-oly block on physical paper.
 2. **Offline / Self-Hosted Invariant:** All scripts, fonts, and assets must reside inside the Docker container (`/usr/share/nginx/html`); zero external CDN calls required.
 3. **Responsive Degradation:** On tablet/mobile screens, the virtual A4 canvas scales down visually via CSS `transform: scale(...)` without altering the physical export dimensions.
+
+---
+
+## 8. Developer Effort & Feasibility Comparison Across 3 Approaches
+
+*(Also published on [GitHub Issue #1 Comment](https://github.com/catmandx-llm-playground/VietnameseHandwritingGenerator/issues/1#issuecomment-7094158354))*
+
+| Metric | Approach 1: Native Fabric.js Sub-App (`worksheet.html`) | Approach 2: Polotno Studio (Canva Clone) | Approach 3: Draw.io (Docker) |
+| :--- | :--- | :--- | :--- |
+| **Estimated Effort** | **8 – 12 hours** | **14 – 20 hours** | **6 – 10 hours** |
+| **Infrastructure** | **0 extra containers** (serves in existing Nginx) | 1 new build step or companion container | 1 new Docker container (`jgraph/drawio`) |
+| **Non-Tech Teacher UX** | ⭐⭐⭐⭐⭐ (Laser-focused on worksheets) | ⭐⭐⭐⭐⭐ (Polished Canva feel) | ⭐⭐⭐ (Feels like Visio/CAD) |
+| **Exact 1cm Sizing Lock** | ⭐⭐⭐⭐⭐ (1-click calibration slider) | ⭐⭐⭐ (Freeform pixel scaling by default) | ⭐⭐⭐⭐ (Has mm/cm rulers) |
+| **Maintenance Overhead** | **Very Low** (Single static file, 0 dependencies) | Medium (React/Node build + API key terms) | Low (Handled by Docker image updates) |
+
+### Detailed Breakdown:
+- **Approach 1 (Fabric.js Sub-App)**:
+  - *Reuse:* Existing Nginx container, Fabric.js engine, `sessionStorage` transport, `canvas.toJSON()` project persistence.
+  - *Wire up:* Launch button in main toolbar, `sessionStorage` SVG deserialization, scale slider to `scaleToWidth`.
+  - *Build from scratch:* `worksheet.html` UI, 3–4 primary school template definitions, 100% scale print CSS rules.
+- **Approach 2 (Polotno Studio)**:
+  - *Reuse:* Full Canva-like React UI, asset library, PDF/PNG export.
+  - *Wire up:* React build/Vite pipeline, Nginx `/studio` route, SVG bridge on mount.
+  - *Build from scratch:* 1cm physical scale lock widget, custom template schema loader, UI feature pruning.
+- **Approach 3 (Draw.io Docker)**:
+  - *Reuse:* Official Docker image, rich desktop publishing tools, A4 paper mode.
+  - *Wire up:* `docker-compose.yml` service, URL hash / iframe postMessage bridge.
+  - *Build from scratch:* mxGraph XML model serializer for handwriting grids, UI parameter sanitization (`ui=min`).
