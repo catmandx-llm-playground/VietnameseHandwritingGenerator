@@ -93,7 +93,7 @@ This document tracks planned features, workflow enhancements, bug fixes, and imp
 ## 6. A4 Worksheet Studio & Primary School Template Integration
 
 - [ ] **Integrated A4 Worksheet Studio & 1-Click Practice Sheet Editor**
-  - **Tracking Issue**: [plans/github-tracking-issue.md](plans/github-tracking-issue.md)
+  - **Tracking Issue**: [#1: [Feature] Integrated A4 Worksheet Studio & Primary School Practice Sheet Editor](https://github.com/catmandx-llm-playground/VietnameseHandwritingGenerator/issues/1) ([plans/github-tracking-issue.md](plans/github-tracking-issue.md))
   - **Design Specification**: [plans/a4-worksheet-studio-integration.md](plans/a4-worksheet-studio-integration.md)
   - **Problem**: Non-technical teachers and parents currently struggle to convert exported 14x20/11x14 handwriting lines into complete worksheets using Word or PowerPoint, resulting in image downsampling, distorted grid cell dimensions, and font glitches.
   - **Solution**:

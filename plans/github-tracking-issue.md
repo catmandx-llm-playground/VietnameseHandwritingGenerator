@@ -1,5 +1,6 @@
-# Issue: [Feature] Integrated A4 Worksheet Studio & Primary School Practice Sheet Editor
+# Issue #1: [Feature] Integrated A4 Worksheet Studio & Primary School Practice Sheet Editor
 
+**GitHub Issue URL**: https://github.com/catmandx-llm-playground/VietnameseHandwritingGenerator/issues/1  
 **Labels**: `enhancement`, `ux`, `export`, `templates`, `roadmap`  
 **Milestone**: `v1.2.0 - Worksheet Studio`
 
