@@ -90,7 +90,24 @@ This document tracks planned features, workflow enhancements, bug fixes, and imp
 
 ---
 
-## 6. Credits & Attribution
+## 6. A4 Worksheet Studio & Primary School Template Integration
+
+- [ ] **Integrated A4 Worksheet Studio & 1-Click Practice Sheet Editor**
+  - **Tracking Issue**: [plans/github-tracking-issue.md](plans/github-tracking-issue.md)
+  - **Design Specification**: [plans/a4-worksheet-studio-integration.md](plans/a4-worksheet-studio-integration.md)
+  - **Problem**: Non-technical teachers and parents currently struggle to convert exported 14x20/11x14 handwriting lines into complete worksheets using Word or PowerPoint, resulting in image downsampling, distorted grid cell dimensions, and font glitches.
+  - **Solution**:
+    - Add a 1-click **"Thiết kế phiếu A4"** toolbar button to the main handwriting generator.
+    - Open a self-hosted, lightweight A4 editor (`worksheet.html`) in a new tab with pre-defined Vietnamese primary school templates automatically applied:
+      - School header (*Trường Tiểu học, Lớp, Họ và tên, Ngày*).
+      - Title (*Phiếu Luyện Viết Chữ Đẹp*).
+      - Centered 14x20 grid calibrated to exact $1.0\text{ cm} \times 1.0\text{ cm}$ big cells ($2.5\text{ mm}$ small ô ly).
+      - Teacher grading and evaluation box (*Điểm, Lời phê của cô giáo*).
+    - Provide intuitive teacher controls: inline text editing, grid scale slider (80%-125%), school logo/sticker upload, project file save/load (`.json`), and 100% true-scale A4 printing.
+
+---
+
+## 7. Credits & Attribution
 
 - [x] **Update Project Credits & Source Links**
   - **Creator**: Credit project creator **catmandx** with an explicit link to the GitHub repository:
