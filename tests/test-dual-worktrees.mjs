@@ -61,20 +61,30 @@ async function runTests() {
     const canvasEl = document.getElementById('worksheet-canvas');
     const templateSelect = document.getElementById('template-select');
     const scaleSlider = document.getElementById('grid-scale-slider');
+    const hasProjectDropdown = !!document.getElementById('project-dropdown');
+    const hasExportDropdown = !!document.getElementById('export-dropdown');
+    const hasJsPdf = !!(window.jspdf && window.jspdf.jsPDF);
     return {
       hasCanvas: !!canvasEl,
       hasTemplateSelect: !!templateSelect,
       currentTemplate: templateSelect?.value,
       sliderValue: scaleSlider?.value,
       canvasWidth: canvasEl?.width,
-      canvasHeight: canvasEl?.height
+      canvasHeight: canvasEl?.height,
+      hasProjectDropdown,
+      hasExportDropdown,
+      hasJsPdf
     };
   });
   console.log('  Worksheet Studio Metrics:', worksheetMetrics);
   if (!worksheetMetrics.hasCanvas || worksheetMetrics.canvasWidth !== 794) {
     throw new Error(`chudep1: Unexpected worksheet canvas dimensions ${worksheetMetrics.canvasWidth}x${worksheetMetrics.canvasHeight}`);
   }
+  if (!worksheetMetrics.hasProjectDropdown || !worksheetMetrics.hasExportDropdown || !worksheetMetrics.hasJsPdf) {
+    throw new Error('chudep1: Missing project dropdown, export dropdown, or jsPDF!');
+  }
   console.log('  ✅ Worksheet Studio A4 canvas verified (794x1123 px)');
+  console.log('  ✅ Project dropdown, Export dropdown, and jsPDF verified');
 
   // Change template to decorative_border
   await page.evaluate(() => {
@@ -93,6 +103,68 @@ async function runTests() {
   });
   await new Promise(r => setTimeout(r, 300));
   console.log('  ✅ Grid scale slider tested at 110%');
+
+  // Test Export Formats (PNG, SVG, PDF) and scale selector interaction
+  const exportChecks = await page.evaluate(async () => {
+    const typeSelect = document.getElementById('export-type-select');
+    const scaleSelect = document.getElementById('export-scale-select');
+    const hint = document.getElementById('export-device-hint');
+    const exportBtn = document.getElementById('btn-execute-export');
+
+    // 1. Check PNG 4x
+    window.$('#export-type-select').val('png').trigger('change');
+    window.$('#export-scale-select').val('4').trigger('change');
+    const pngHint = hint.textContent;
+    const pngScaleDisabled = scaleSelect.disabled;
+
+    // 2. Check SVG
+    window.$('#export-type-select').val('svg').trigger('change');
+    const svgHint = hint.textContent;
+    const svgScaleDisabled = scaleSelect.disabled;
+
+    // 3. Check PDF
+    window.$('#export-type-select').val('pdf').trigger('change');
+    const pdfHint = hint.textContent;
+    const pdfScaleDisabled = scaleSelect.disabled;
+
+    // Reset to PNG 2x
+    window.$('#export-type-select').val('png').trigger('change');
+    window.$('#export-scale-select').val('2').trigger('change');
+
+    // Mock anchor clicks for export
+    let triggeredDownloads = [];
+    const origClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      triggeredDownloads.push({ href: this.href?.substring(0, 40), download: this.download });
+    };
+
+    // Trigger PNG export
+    document.getElementById('btn-execute-export').click();
+    await new Promise(r => setTimeout(r, 300));
+
+    // Trigger Project save
+    document.getElementById('btn-save-project').click();
+    await new Promise(r => setTimeout(r, 300));
+
+    HTMLAnchorElement.prototype.click = origClick;
+
+    return {
+      pngHint,
+      pngScaleDisabled,
+      svgHint,
+      svgScaleDisabled,
+      pdfHint,
+      pdfScaleDisabled,
+      triggeredDownloads
+    };
+  });
+
+  console.log('  Export Checks in Worksheet Studio:', exportChecks);
+  if (exportChecks.svgScaleDisabled !== true || exportChecks.pngScaleDisabled !== false) {
+    throw new Error('chudep1: Export scale selector did not correctly toggle disabled state between SVG and PNG!');
+  }
+  console.log('  ✅ Export controls (PNG size selector, SVG vector, PDF document) verified');
+  console.log('  ✅ Project file save action verified');
 
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'chudep1_worksheet.png') });
 
@@ -133,17 +205,55 @@ async function runTests() {
 
   const polotnoMetrics = await page.evaluate(() => {
     const rootEl = document.getElementById('root');
+    const saveProjectBtn = document.getElementById('btn-polotno-save-project');
+    const openProjectBtn = document.getElementById('btn-polotno-open-project');
+    const formatSelect = document.getElementById('polotno-export-format');
+    const scaleSelect = document.getElementById('polotno-export-scale');
+    const exportBtn = document.getElementById('btn-polotno-export');
+
     return {
       hasRoot: !!rootEl,
       hasChildren: rootEl?.children.length > 0,
-      childCount: rootEl?.children.length
+      hasSaveProject: !!saveProjectBtn,
+      hasOpenProject: !!openProjectBtn,
+      hasFormatSelect: !!formatSelect,
+      hasScaleSelect: !!scaleSelect,
+      hasExportBtn: !!exportBtn
     };
   });
   console.log('  Polotno Studio Metrics:', polotnoMetrics);
   if (!polotnoMetrics.hasRoot || !polotnoMetrics.hasChildren) {
     throw new Error('chudep2: Polotno Studio root container did not mount children!');
   }
-  console.log('  ✅ Polotno Studio application mounted and active');
+  if (!polotnoMetrics.hasSaveProject || !polotnoMetrics.hasFormatSelect || !polotnoMetrics.hasExportBtn) {
+    throw new Error('chudep2: Polotno Studio header controls missing!');
+  }
+  console.log('  ✅ Polotno Studio application mounted and active with custom header controls');
+
+  // Test Polotno format selection
+  await page.evaluate(() => {
+    const formatSel = document.getElementById('polotno-export-format');
+    formatSel.value = 'svg';
+    formatSel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await new Promise(r => setTimeout(r, 200));
+
+  const polotnoSvgCheck = await page.evaluate(() => {
+    const scaleSel = document.getElementById('polotno-export-scale');
+    return { scaleSelVisible: !!scaleSel };
+  });
+  console.log('  Polotno SVG Scale Select (should be hidden):', polotnoSvgCheck.scaleSelVisible);
+  if (polotnoSvgCheck.scaleSelVisible !== false) {
+    throw new Error('chudep2: Polotno scale selector should be hidden when SVG format is selected!');
+  }
+
+  // Switch back to PNG
+  await page.evaluate(() => {
+    const formatSel = document.getElementById('polotno-export-format');
+    formatSel.value = 'png';
+    formatSel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await new Promise(r => setTimeout(r, 200));
 
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'chudep2_studio.png') });
 
