@@ -77,6 +77,10 @@ async function runTests() {
     assert(typeof exportEngine.renderWhite11x14PageToCanvas === 'function', 'export-engine exports renderWhite11x14PageToCanvas');
     assert(typeof exportEngine.renderWhite14x20PageToCanvas === 'function', 'export-engine exports renderWhite14x20PageToCanvas');
     assert(typeof exportEngine.exportWhite14x20ToPng === 'function', 'export-engine exports exportWhite14x20ToPng');
+    assert(typeof exportEngine.loadOpentypeFonts === 'function', 'export-engine exports loadOpentypeFonts');
+    assert(typeof exportEngine.svgColorAttrs === 'function', 'export-engine exports svgColorAttrs');
+    assert(typeof exportEngine.renderSvgTextAsPath === 'function', 'export-engine exports renderSvgTextAsPath');
+    assert(exportEngine.svgColorAttrs('stroke', 'rgba(60, 75, 115, 0.9)') === 'stroke="rgb(60, 75, 115)" stroke-opacity="0.9"', 'svgColorAttrs converts rgba() to SVG 1.1 rgb() + opacity');
 
     const { uiController } = await import('../static/js/modules/ui-controller.js');
     assert(typeof uiController.changeFontSize === 'function', 'ui-controller exports changeFontSize');
@@ -157,6 +161,8 @@ async function runTests() {
     assert(exportJs.includes("majorColor = 'rgba(60, 75, 115, 0.9)'"), 'Export majorColor calibrated to rgba(60, 75, 115, 0.9)');
     assert(exportJs.includes("minorColor = 'rgba(90, 115, 165, 0.7)'"), 'Export minorColor calibrated to rgba(90, 115, 165, 0.7)');
     assert(exportJs.includes('dotRadius = isSmall ? 1.25 : 1.75;'), 'Export dotRadius calibrated to 1.25 / 1.75');
+    assert(!exportJs.includes("wordIsBold === 'normal'"), 'No self-referencing wordIsBold TDZ bug in export-engine.js');
+    assert(!exportJs.includes('<defs>\n${fontDefs}\n</defs>'), 'No nested <defs> wrapper in export-engine.js');
 
     // 5. Optimal Stretch Guideline Invariants
     const dragJs = fs.readFileSync(path.join(projectRoot, 'static/js/modules/drag-stretch-handler.js'), 'utf-8');

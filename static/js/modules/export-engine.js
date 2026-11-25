@@ -1,3 +1,4 @@
+import * as opentype from '../opentype.module.min.js';
 import { model } from './model.js';
 import { dottingManager } from './dotting-manager.js';
 import { storageManager } from './storage-manager.js';
@@ -5,8 +6,9 @@ import { storageManager } from './storage-manager.js';
 /**
  * Multi-Format Export Engine
  * Generates Canvas PNG (with automatic & manual 2x/4x/6x/8x scaling),
- * SVG Vector files with embedded Base64 fonts, and printable A4 PDF documents
- * across Standard Infinite board, Blackboard slate, and White 11x14 notebook layouts.
+ * portable SVG Vector files (all text/glyphs converted to vector <path> outlines),
+ * and printable A4 PDF documents across Standard Infinite board, Blackboard slate,
+ * White 11x14, and White 14x20 notebook layouts.
  */
 export const exportEngine = {};
 
@@ -130,6 +132,113 @@ exportEngine.updateExportUI = function () {
 
     $('#btn-export-label').text(mainLabel);
     $('#btn-execute-export-label').text(actionLabel);
+};
+
+exportEngine._opentypeFontCache = null;
+exportEngine._opentypeFontPromise = null;
+
+/**
+ * Loads and parses HP001 TTF/OTF font binaries once via opentype.js so SVG exports
+ * can convert all glyphs to pure vector <path> outlines (zero font dependency).
+ */
+exportEngine.loadOpentypeFonts = async function () {
+    if (exportEngine._opentypeFontCache) return exportEngine._opentypeFontCache;
+    if (exportEngine._opentypeFontPromise) return exportEngine._opentypeFontPromise;
+
+    const fontDefs = [
+        { key: 'HP001N', url: '/static/font/HP001N30.ttf' },
+        { key: 'HP001B', url: '/static/font/HP001B30.ttf' },
+        { key: 'HP001TD', url: '/static/font/HP001TD.otf' }
+    ];
+
+    exportEngine._opentypeFontPromise = (async () => {
+        const cache = {};
+        await Promise.all(fontDefs.map(async (def) => {
+            try {
+                const res = await fetch(def.url);
+                if (!res.ok) return;
+                const buf = await res.arrayBuffer();
+                cache[def.key] = opentype.parse(buf);
+            } catch (e) {
+                console.warn('Opentype font loading for SVG error:', def.key, e);
+            }
+        }));
+        if (cache.HP001N || cache.HP001B || cache.HP001TD) {
+            exportEngine._opentypeFontCache = cache;
+        }
+        exportEngine._opentypeFontPromise = null;
+        return cache;
+    })();
+
+    return exportEngine._opentypeFontPromise;
+};
+
+/**
+ * Formats CSS colors (including rgba) into SVG 1.1 compatible attributes
+ * (rgb(...) + *-opacity) for maximum compatibility with Illustrator, Inkscape, and Figma.
+ */
+exportEngine.svgColorAttrs = function (attrName, color) {
+    if (!color || color === 'none') {
+        return `${attrName}="none"`;
+    }
+    const match = String(color).trim().match(/^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/i);
+    if (match) {
+        return `${attrName}="rgb(${match[1]}, ${match[2]}, ${match[3]})" ${attrName}-opacity="${match[4]}"`;
+    }
+    return `${attrName}="${exportEngine.escapeXml(color)}"`;
+};
+
+/**
+ * Renders a word or character string as an SVG <path> element using opentype.js.
+ * Falls back to <text> only if font binaries could not be loaded.
+ */
+exportEngine.renderSvgTextAsPath = function (fonts, opts) {
+    const {
+        text,
+        x,
+        y,
+        fontSizePx,
+        stretch = 1.0,
+        isBold = false,
+        isDotted = false,
+        fill = '#000000',
+        stroke = null,
+        strokeWidth = null
+    } = opts || {};
+
+    if (!text) return '';
+
+    const font = isDotted
+        ? (fonts && fonts.HP001TD)
+        : (fonts && (isBold ? (fonts.HP001B || fonts.HP001N) : (fonts.HP001N || fonts.HP001B)));
+
+    const fillAttrs = exportEngine.svgColorAttrs('fill', fill);
+    const strokeAttrs = stroke
+        ? `${exportEngine.svgColorAttrs('stroke', stroke)}${strokeWidth !== null && strokeWidth !== undefined ? ` stroke-width="${strokeWidth}"` : ''}`
+        : '';
+    const hasStretch = stretch && Math.abs(stretch - 1.0) > 1e-6;
+
+    if (!font) {
+        const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
+        const fontWeight = (!isDotted && isBold) ? 'bold' : 'normal';
+        const esc = exportEngine.escapeXml(text);
+        if (hasStretch) {
+            return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${stretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" ${fillAttrs}${strokeAttrs ? ' ' + strokeAttrs : ''} dominant-baseline="alphabetic">${esc}</text>\n`;
+        }
+        return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" ${fillAttrs}${strokeAttrs ? ' ' + strokeAttrs : ''} dominant-baseline="alphabetic">${esc}</text>\n`;
+    }
+
+    const pathObj = hasStretch
+        ? font.getPath(text, 0, 0, fontSizePx)
+        : font.getPath(text, x, y, fontSizePx);
+    const d = pathObj.toPathData(2);
+    if (!d) return '';
+
+    const transformAttr = hasStretch
+        ? ` transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${stretch.toFixed(4)}, 1)"`
+        : '';
+    const strokePart = strokeAttrs ? ` ${strokeAttrs}` : '';
+    return `<path d="${d}"${transformAttr} ${fillAttrs}${strokePart} />\n`;
 };
 
 exportEngine._fontBase64Cache = null;
@@ -522,7 +631,7 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
     const rawLineText = rawInputLines[bIdx] || words.map(w => w.raw || w.text).join(' ');
 
     const bgDataUrl = await exportEngine.getBlackboardDataUrl();
-    const fontDefs = await exportEngine.buildSvgFontDefs();
+    const otFonts = await exportEngine.loadOpentypeFonts();
 
     let textSvg = '';
     const italicMatrix = `matrix(1 0 ${(-Math.tan(17 * Math.PI / 180)).toFixed(6)} 1 0 0)`;
@@ -533,13 +642,15 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
         words.forEach(word => {
             const xPos = startX + word.offsetLeft;
             const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-            const fontWeight = wordIsBold ? 'bold' : 'normal';
-            const escaped = exportEngine.escapeXml(word.text);
-            if (word.stretch && word.stretch !== 1.0) {
-                wordsMarkup += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${baselineY.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            } else {
-                wordsMarkup += `<text x="${xPos.toFixed(2)}" y="${baselineY.toFixed(2)}" font-family="HP001, serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            }
+            wordsMarkup += exportEngine.renderSvgTextAsPath(otFonts, {
+                text: word.text,
+                x: xPos,
+                y: baselineY,
+                fontSizePx,
+                stretch: word.stretch,
+                isBold: wordIsBold,
+                fill: textColor
+            });
         });
         textSvg += `<g ${italicTransform}>${wordsMarkup}</g>\n`;
     }
@@ -621,17 +732,22 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
                         const isFaint = (outlineInfo.style === 'faint');
                         const isCurve = (outlineInfo.style === 'curve');
 
-                        const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
                         const fillCol = isDotted ? 'rgba(255, 215, 0, 0.75)' : (isFaint ? 'rgba(255, 215, 0, 0.38)' : 'none');
-                        const strokeAttr = isCurve ? 'stroke="rgba(255, 255, 255, 0.45)" stroke-width="1.2"' : '';
+                        const strokeCol = isCurve ? 'rgba(255, 255, 255, 0.45)' : null;
 
                         const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
-                            const esc = exportEngine.escapeXml(str);
-                            const weightStr = isBoldWord ? 'bold' : 'normal';
-                            if (strStretch && strStretch !== 1.0) {
-                                return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
-                            }
-                            return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                            return exportEngine.renderSvgTextAsPath(otFonts, {
+                                text: str,
+                                x,
+                                y,
+                                fontSizePx,
+                                stretch: strStretch,
+                                isBold: isBoldWord,
+                                isDotted,
+                                fill: fillCol,
+                                stroke: strokeCol,
+                                strokeWidth: isCurve ? 1.2 : null
+                            });
                         };
 
                         if (outlineInfo.scope === 'first') {
@@ -663,7 +779,7 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
                                     for (const dot of wDotCfg.dots) {
                                         const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                         const dotY = baselineY - (dot.y * olyUnitPx);
-                                        groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" stroke="rgba(0, 0, 0, 0.5)" stroke-width="1" />\n`;
+                                        groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} stroke="rgb(0, 0, 0)" stroke-opacity="0.5" stroke-width="1" />\n`;
                                     }
                                 }
                             });
@@ -671,7 +787,7 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
                             for (const dot of activeDotConfig.dots) {
                                 const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
                                 const dotY = baselineY - (dot.y * olyUnitPx);
-                                groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" stroke="rgba(0, 0, 0, 0.5)" stroke-width="1" />\n`;
+                                groupInner += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} stroke="rgb(0, 0, 0)" stroke-opacity="0.5" stroke-width="1" />\n`;
                             }
                         }
                     }
@@ -683,8 +799,7 @@ exportEngine.renderBlackboardToSvg = async function (boardEl, bIdx, totalBoards)
 
     const svgString = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
-${fontDefs}
-<image href="${bgDataUrl}" x="0" y="0" width="${widthPx}" height="${heightPx}" />
+<image xlink:href="${bgDataUrl}" href="${bgDataUrl}" x="0" y="0" width="${widthPx}" height="${heightPx}" />
 ${textSvg}
 ${dottingSvg}
 </svg>`;
@@ -1144,7 +1259,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
     const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
     const firstBaselineY = gridOriginY + 4 * subGridPx;
 
-    const fontDefs = await exportEngine.buildSvgFontDefs();
+    const otFonts = await exportEngine.loadOpentypeFonts();
 
     // 1. Grid Lines
     const majorColor = 'rgba(60, 75, 115, 0.9)';
@@ -1156,7 +1271,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
     for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
         const k = Math.round((y - gridOriginY) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
     }
 
     const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
@@ -1166,7 +1281,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
     for (let x = startX; x <= xMax; x += subGridPx) {
         const k = Math.round((x - gridOriginX) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
     }
 
     // 2. Text & Dots
@@ -1205,13 +1320,15 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
         words.forEach(word => {
             const xPos = gridOriginX + word.offsetLeft;
             const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-            const fontWeight = wordIsBold ? 'bold' : 'normal';
-            const escaped = exportEngine.escapeXml(word.text);
-            if (word.stretch && word.stretch !== 1.0) {
-                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            } else {
-                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            }
+            textSvg += exportEngine.renderSvgTextAsPath(otFonts, {
+                text: word.text,
+                x: xPos,
+                y: yPos,
+                fontSizePx,
+                stretch: word.stretch,
+                isBold: wordIsBold,
+                fill: textColor
+            });
         });
 
         const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
@@ -1289,17 +1406,22 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
                             const isFaint = (outlineInfo.style === 'faint');
                             const isCurve = (outlineInfo.style === 'curve');
 
-                            const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
                             const fillCol = isDotted ? 'rgba(43, 16, 85, 0.65)' : (isFaint ? 'rgba(43, 16, 85, 0.32)' : 'none');
-                            const strokeAttr = isCurve ? `stroke="rgba(43, 16, 85, 0.42)" stroke-width="${isSmall ? 0.8 : 1.0}"` : '';
+                            const strokeCol = isCurve ? 'rgba(43, 16, 85, 0.42)' : null;
 
                             const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
-                                const esc = exportEngine.escapeXml(str);
-                                const weightStr = isBoldWord ? 'bold' : 'normal';
-                                if (strStretch && strStretch !== 1.0) {
-                                    return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
-                                }
-                                return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                                return exportEngine.renderSvgTextAsPath(otFonts, {
+                                    text: str,
+                                    x,
+                                    y,
+                                    fontSizePx,
+                                    stretch: strStretch,
+                                    isBold: isBoldWord,
+                                    isDotted,
+                                    fill: fillCol,
+                                    stroke: strokeCol,
+                                    strokeWidth: isCurve ? (isSmall ? 0.8 : 1.0) : null
+                                });
                             };
 
                             if (outlineInfo.scope === 'first') {
@@ -1331,7 +1453,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
                                         for (const dot of wDotCfg.dots) {
                                             const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                             const dotY = yPos - (dot.y * olyUnitPx);
-                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                                         }
                                     }
                                 });
@@ -1339,7 +1461,7 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
                                 for (const dot of activeDotConfig.dots) {
                                     const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
                                     const dotY = yPos - (dot.y * olyUnitPx);
-                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                                 }
                             }
                         }
@@ -1354,7 +1476,6 @@ exportEngine.renderWhite11x14PageToSvg = async function (boardEl, pIdx, totalBoa
 
     const svgString = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
-${fontDefs}
 <rect width="${widthPx}" height="${heightPx}" fill="#ffffff" />
 <g id="grid-lines">
 ${linesSvg}
@@ -1729,7 +1850,7 @@ exportEngine.renderWhite14x20PageToCanvas = async function (boardEl, pIdx, custo
                                         const xPos = gridOriginX + w.offsetLeft + shiftX;
                                         const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
                                         if (!isDotted) {
-                                            const wordIsBold = w.weight === 'bold' ? true : (wordIsBold === 'normal' ? false : isBold);
+                                            const wordIsBold = w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold);
                                             ctx.font = `${wordIsBold ? 'bold' : 'normal'} ${fontSizePx}px HP001, serif`;
                                         }
                                         drawText(textToDraw, xPos, yPos, w.stretch || 1.0);
@@ -1803,7 +1924,7 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
     const lineHeightPx = (isSmall ? (subGridPx * 4) : (subGridPx * 8));
     const firstBaselineY = gridOriginY + 4 * subGridPx;
 
-    const fontDefs = await exportEngine.buildSvgFontDefs();
+    const otFonts = await exportEngine.loadOpentypeFonts();
 
     // 1. Grid Lines
     const majorColor = 'rgba(60, 75, 115, 0.9)';
@@ -1815,7 +1936,7 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
     for (let y = 0; y <= heightPx + 0.1; y += subGridPx) {
         const k = Math.round((y - gridOriginY) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
     }
 
     const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
@@ -1825,7 +1946,7 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
     for (let x = startX; x <= xMax; x += subGridPx) {
         const k = Math.round((x - gridOriginX) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? gridLineWidthMajor : gridLineWidthMinor}" />\n`;
     }
 
     // 2. Text & Dots
@@ -1864,13 +1985,15 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
         words.forEach(word => {
             const xPos = gridOriginX + word.offsetLeft;
             const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-            const fontWeight = wordIsBold ? 'bold' : 'normal';
-            const escaped = exportEngine.escapeXml(word.text);
-            if (word.stretch && word.stretch !== 1.0) {
-                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            } else {
-                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${escaped}</text>\n`;
-            }
+            textSvg += exportEngine.renderSvgTextAsPath(otFonts, {
+                text: word.text,
+                x: xPos,
+                y: yPos,
+                fontSizePx,
+                stretch: word.stretch,
+                isBold: wordIsBold,
+                fill: textColor
+            });
         });
 
         const srcLineIdx = parseInt($line.attr('data-source-line-idx'), 10);
@@ -1950,49 +2073,37 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
                                 const isFaint = (outlineInfo.style === 'faint');
                                 const isCurve = (outlineInfo.style === 'curve');
 
-                                let fillAttr = 'fill="rgba(43, 16, 85, 0.32)"';
-                                let strokeAttr = '';
-                                let fontFam = 'HP001, serif';
+                                const fillCol = isDotted ? 'rgba(43, 16, 85, 0.65)' : (isFaint ? 'rgba(43, 16, 85, 0.32)' : 'none');
+                                const strokeCol = isCurve ? 'rgba(43, 16, 85, 0.42)' : null;
 
-                                if (isDotted) {
-                                    fontFam = 'HP001TD, serif';
-                                    fillAttr = 'fill="rgba(43, 16, 85, 0.65)"';
-                                } else if (isFaint) {
-                                    fontFam = 'HP001, serif';
-                                    fillAttr = 'fill="rgba(43, 16, 85, 0.32)"';
-                                } else {
-                                    fontFam = 'HP001, serif';
-                                    fillAttr = 'fill="none"';
-                                    strokeAttr = `stroke="rgba(43, 16, 85, 0.42)" stroke-width="${isSmall ? '0.8' : '1.0'}"`;
-                                }
+                                const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
+                                    return exportEngine.renderSvgTextAsPath(otFonts, {
+                                        text: str,
+                                        x,
+                                        y,
+                                        fontSizePx,
+                                        stretch: strStretch,
+                                        isBold: isBoldWord,
+                                        isDotted,
+                                        fill: fillCol,
+                                        stroke: strokeCol,
+                                        strokeWidth: isCurve ? (isSmall ? 0.8 : 1.0) : null
+                                    });
+                                };
 
                                 if (outlineInfo.scope === 'first') {
                                     const xPos = baseWordX + shiftX;
                                     const w0 = wordsToDraw[0];
                                     const textToDraw = isDotted ? charUnit : model.getUnicodeStr(charUnit);
-                                    const escapedText = exportEngine.escapeXml(textToDraw);
                                     const word0Weight = w0 ? w0.weight : null;
-                                    const firstWordIsBold = word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold);
-                                    const weightAttr = (!isDotted && firstWordIsBold) ? 'bold' : 'normal';
-
-                                    if (firstStretch && firstStretch !== 1.0) {
-                                        dottingSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${firstStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
-                                    } else {
-                                        dottingSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
-                                    }
+                                    const firstWordIsBold = !isDotted && (word0Weight === 'bold' ? true : (word0Weight === 'normal' ? false : isBold));
+                                    dottingSvg += drawSvgText(textToDraw, xPos, yPos, firstStretch, firstWordIsBold);
                                 } else if (outlineInfo.scope === 'all') {
                                     wordsToDraw.forEach(w => {
                                         const xPos = gridOriginX + w.offsetLeft + shiftX;
                                         const textToDraw = isDotted ? (w.raw || w.text) : (w.text || model.getUnicodeStr(w.raw));
-                                        const escapedText = exportEngine.escapeXml(textToDraw);
-                                        const wordIsBold = w.weight === 'bold' ? true : (wordIsBold === 'normal' ? false : isBold);
-                                        const weightAttr = (!isDotted && wordIsBold) ? 'bold' : 'normal';
-
-                                        if (w.stretch && w.stretch !== 1.0) {
-                                            dottingSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${w.stretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
-                                        } else {
-                                            dottingSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightAttr}" ${fillAttr} ${strokeAttr} dominant-baseline="alphabetic">${escapedText}</text>\n`;
-                                        }
+                                        const wordIsBold = !isDotted && (w.weight === 'bold' ? true : (w.weight === 'normal' ? false : isBold));
+                                        dottingSvg += drawSvgText(textToDraw, xPos, yPos, w.stretch || 1.0, wordIsBold);
                                     });
                                 }
                             }
@@ -2010,7 +2121,7 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
                                         for (const dot of wDotCfg.dots) {
                                             const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                             const dotY = yPos - (dot.y * olyUnitPx);
-                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                            dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                                         }
                                     }
                                 });
@@ -2018,7 +2129,7 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
                                 for (const dot of activeDotConfig.dots) {
                                     const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
                                     const dotY = yPos - (dot.y * olyUnitPx);
-                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                    dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                                 }
                             }
                         }
@@ -2032,9 +2143,6 @@ exportEngine.renderWhite14x20PageToSvg = async function (boardEl, pIdx, totalBoa
 
     const svgString = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}">
-<defs>
-${fontDefs}
-</defs>
 <rect width="${widthPx}" height="${heightPx}" fill="#ffffff" />
 <g id="grid-layer">
 ${linesSvg}
@@ -2589,7 +2697,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
     const neededHeight = lastBaselineY + bigGridPx * 2;
     const heightPx = Math.ceil(neededHeight / bigGridPx) * bigGridPx;
 
-    const fontDefs = await exportEngine.buildSvgFontDefs();
+    const otFonts = await exportEngine.loadOpentypeFonts();
 
     // Grid lines
     const majorColor = isWhiteBoard ? 'rgba(60, 75, 115, 0.9)' : 'rgba(220, 220, 220, 0.7)';
@@ -2600,7 +2708,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
     for (let y = startY; y <= heightPx; y += subGridPx) {
         const k = Math.round((y - gridOriginY) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
+        linesSvg += `<line x1="0" y1="${y.toFixed(2)}" x2="${widthPx}" y2="${y.toFixed(2)}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
     }
 
     const slantOffset = isItalics ? Math.tan(17 * Math.PI / 180) : 0;
@@ -2610,7 +2718,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
     for (let x = startX; x <= xMax; x += subGridPx) {
         const k = Math.round((x - gridOriginX) / subGridPx);
         const isMajor = (k % 4 === 0);
-        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" stroke="${isMajor ? majorColor : minorColor}" stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
+        linesSvg += `<line x1="${x.toFixed(2)}" y1="0" x2="${(x - heightPx * slantOffset).toFixed(2)}" y2="${heightPx}" ${exportEngine.svgColorAttrs('stroke', isMajor ? majorColor : minorColor)} stroke-width="${isMajor ? 2.0 : 1.0}" />\n`;
     }
 
     // Text & Dots
@@ -2622,13 +2730,15 @@ exportEngine.renderStandardBoardToSvg = async function () {
         lineObj.words.forEach(word => {
             const xPos = gridOriginX + word.offsetLeft;
             const wordIsBold = word.weight === 'bold' ? true : (word.weight === 'normal' ? false : isBold);
-            const fontWeight = wordIsBold ? 'bold' : 'normal';
-            const esc = exportEngine.escapeXml(word.text);
-            if (word.stretch && word.stretch !== 1.0) {
-                textSvg += `<text x="0" y="0" transform="translate(${xPos.toFixed(2)}, ${yPos.toFixed(2)}) scale(${word.stretch.toFixed(4)}, 1)" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${esc}</text>\n`;
-            } else {
-                textSvg += `<text x="${xPos.toFixed(2)}" y="${yPos.toFixed(2)}" font-family="HP001, sans-serif" font-size="${fontSizePx.toFixed(2)}px" font-weight="${fontWeight}" fill="${textColor}" dominant-baseline="alphabetic">${esc}</text>\n`;
-            }
+            textSvg += exportEngine.renderSvgTextAsPath(otFonts, {
+                text: word.text,
+                x: xPos,
+                y: yPos,
+                fontSizePx,
+                stretch: word.stretch,
+                isBold: wordIsBold,
+                fill: textColor
+            });
         });
     });
 
@@ -2716,17 +2826,22 @@ exportEngine.renderStandardBoardToSvg = async function () {
                         const isFaint = (outlineInfo.style === 'faint');
                         const isCurve = (outlineInfo.style === 'curve');
 
-                        const fontFam = isDotted ? 'HP001TD, serif' : 'HP001, serif';
                         const fillCol = isDotted ? (isWhiteBoard ? 'rgba(43, 16, 85, 0.65)' : 'rgba(255, 255, 255, 0.75)') : (isFaint ? (isWhiteBoard ? 'rgba(43, 16, 85, 0.32)' : 'rgba(255, 255, 255, 0.38)') : 'none');
-                        const strokeAttr = isCurve ? `stroke="${isWhiteBoard ? 'rgba(43, 16, 85, 0.42)' : 'rgba(255, 255, 255, 0.45)'}" stroke-width="${isSmall ? 0.8 : 1.0}"` : '';
+                        const strokeCol = isCurve ? (isWhiteBoard ? 'rgba(43, 16, 85, 0.42)' : 'rgba(255, 255, 255, 0.45)') : null;
 
                         const drawSvgText = (str, x, y, strStretch, isBoldWord) => {
-                            const esc = exportEngine.escapeXml(str);
-                            const weightStr = isBoldWord ? 'bold' : 'normal';
-                            if (strStretch && strStretch !== 1.0) {
-                                return `<text x="0" y="0" transform="translate(${x.toFixed(2)}, ${y.toFixed(2)}) scale(${strStretch.toFixed(4)}, 1)" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
-                            }
-                            return `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-family="${fontFam}" font-size="${fontSizePx.toFixed(2)}px" font-weight="${weightStr}" fill="${fillCol}" ${strokeAttr} dominant-baseline="alphabetic">${esc}</text>\n`;
+                            return exportEngine.renderSvgTextAsPath(otFonts, {
+                                text: str,
+                                x,
+                                y,
+                                fontSizePx,
+                                stretch: strStretch,
+                                isBold: isBoldWord,
+                                isDotted,
+                                fill: fillCol,
+                                stroke: strokeCol,
+                                strokeWidth: isCurve ? (isSmall ? 0.8 : 1.0) : null
+                            });
                         };
 
                         if (outlineInfo.scope === 'first') {
@@ -2758,7 +2873,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
                                     for (const dot of wDotCfg.dots) {
                                         const dotX = wBaseX + (dot.x * olyUnitPx * wStretch) + shiftX;
                                         const dotY = yPos - (dot.y * olyUnitPx);
-                                        dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                        dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                                     }
                                 }
                             });
@@ -2766,7 +2881,7 @@ exportEngine.renderStandardBoardToSvg = async function () {
                             for (const dot of activeDotConfig.dots) {
                                 const dotX = baseWordX + (dot.x * olyUnitPx * firstStretch) + shiftX;
                                 const dotY = yPos - (dot.y * olyUnitPx);
-                                dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" fill="${lineDotConfig.color}" />\n`;
+                                dottingSvg += `<circle cx="${dotX.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotRadius}" ${exportEngine.svgColorAttrs('fill', lineDotConfig.color)} />\n`;
                             }
                         }
                     }
@@ -2780,7 +2895,6 @@ exportEngine.renderStandardBoardToSvg = async function () {
 
     const svgString = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
-${fontDefs}
 <rect width="${widthPx}" height="${heightPx}" fill="${isWhiteBoard ? '#ffffff' : '#496e53'}" />
 <g id="grid-lines">
 ${linesSvg}
