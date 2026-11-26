@@ -1,4 +1,20 @@
-# Cloudflare Pages Caching & Headers configuration
+# Cloudflare Pages / Workers Static Assets Caching & Headers configuration
+# Rules accumulate matching headers rather than overriding; keep Cache-Control rules non-overlapping.
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/editor/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/editor/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/editor/js/*
+  Cache-Control: public, max-age=0, must-revalidate
 
 /static/font/*
   Cache-Control: public, max-age=31536000, immutable
@@ -8,13 +24,15 @@
   Cache-Control: public, max-age=2592000
 
 /static/css/*
-  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+  Cache-Control: public, max-age=0, must-revalidate
 
 /static/js/*
-  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+  Cache-Control: public, max-age=0, must-revalidate
+
+/data/*
+  Cache-Control: public, max-age=0, must-revalidate
 
 /data/all.json
-  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
   Content-Type: application/json; charset=utf-8
 
 /*
